@@ -117,6 +117,55 @@
         /* Delete page */
         .delete-wrap { max-width: 380px; margin: 48px auto; }
 
+        /* Responsive Media Queries */
+        @media (max-width: 768px) {
+            .main { padding: 16px 12px; gap: 12px; }
+            .card { padding: 16px; }
+            .navbar { padding: 0 16px; gap: 16px; }
+        }
+
+        @media (max-width: 600px) {
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            .section-header .filter-row,
+            .section-header .filter-row form {
+                width: 100%;
+            }
+            .section-header .filter-row .field-input {
+                flex: 1;
+                width: 100%;
+            }
+            .form-row {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+            .form-row .field-group {
+                width: 100%;
+                flex: none !important;
+            }
+            /* Make button rows full width on mobile if needed, or align properly */
+            .card form button {
+                width: 100%;
+                justify-content: center;
+            }
+            .card form {
+                max-width: 100% !important;
+            }
+            /* Add some spacing for readability in table wrappers on tiny screens */
+            .table-wrap {
+                margin: 0 -16px;
+                padding: 0 16px;
+                -webkit-overflow-scrolling: touch;
+            }
+            table {
+                min-width: 500px; /* Ensure table doesn't get squished, triggers smooth horizontal scroll */
+            }
+        }
+
         /* Filter */
         .filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .filter-row .field-input { width: auto; min-width: 160px; }
