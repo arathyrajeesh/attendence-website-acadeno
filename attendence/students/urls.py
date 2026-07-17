@@ -6,6 +6,8 @@ urlpatterns = [
     path('', views.StudentListView.as_view(), name='student-list'),
     path('students/<int:pk>/edit/', views.StudentUpdateView.as_view(), name='student-update'),
     path('students/<int:pk>/delete/', views.StudentDeleteView.as_view(), name='student-delete'),
+    path('students/<int:pk>/export/pdf/', views.export_student_pdf, name='student-export-pdf'),
+    path('students/<int:pk>/export/excel/', views.export_student_excel, name='student-export-excel'),
 
     # Attendance URLs — mark-attendance form is embedded on the list page
     path('attendance/', views.AttendanceListView.as_view(), name='attendance-list'),

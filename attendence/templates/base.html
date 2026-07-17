@@ -113,6 +113,15 @@
         .action-btn.edit:hover { color: var(--text); background: var(--surface-2); border-color: var(--border-light); }
         .action-btn.delete { color: var(--danger); border-color: rgba(239,68,68,0.25); }
         .action-btn.delete:hover { background: rgba(239,68,68,0.08); border-color: var(--danger); }
+        .action-btn.export-pdf { color: #f472b6; border-color: rgba(244,114,182,0.25); }
+        .action-btn.export-pdf:hover { background: rgba(244,114,182,0.08); border-color: #f472b6; }
+        .action-btn.export-xl { color: var(--warning); border-color: rgba(245,158,11,0.25); }
+        .action-btn.export-xl:hover { background: rgba(245,158,11,0.08); border-color: var(--warning); }
+
+        /* Month-end banner */
+        .month-banner { background: rgba(245,158,11,0.08); border-bottom: 1px solid rgba(245,158,11,0.2); padding: 9px 24px; font-size: 13px; color: var(--warning); display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+        .month-banner a { color: var(--warning); font-weight: 600; text-decoration: underline; }
+        .month-banner a:hover { opacity: 0.8; }
 
         /* Delete page */
         .delete-wrap { max-width: 380px; margin: 48px auto; }
@@ -187,6 +196,12 @@
             <li><a href="{% url 'attendance-list' %}" class="nav-link {% if 'attendance' in request.resolver_match.url_name %}active{% endif %}">Attendance</a></li>
         </ul>
     </nav>
+    {% if month_end_alert %}
+    <div class="month-banner">
+        ⚠️ <strong>{{ current_month_name }} ends in {% if month_end_days == 0 %}today{% elif month_end_days == 1 %}1 day{% else %}{{ month_end_days }} days{% endif %}</strong> — download attendance reports before the month closes.
+        <a href="{% url 'student-list' %}">Download now →</a>
+    </div>
+    {% endif %}
     <main class="main">
         {% if messages %}
         <div class="msg-list">
