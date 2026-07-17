@@ -14,16 +14,27 @@ class Attendance(models.Model):
         ('online', 'Online'),
         ('offline', 'Offline'),
     ]
+    STATUS_CHOICES = [
+        ('present',  'Present'),
+        ('absent',   'Absent'),
+        ('no_class', 'No Class'),
+    ]
 
-    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='attendances')
-    date = models.DateField()
-    mode = models.CharField(max_length=10, choices=MODE_CHOICES)
-    login_time = models.TimeField(null=True, blank=True)
+    student    = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='attendances')
+    date       = models.DateField()
+    mode       = models.CharField(max_length=10, choices=MODE_CHOICES)
+    login_time  = models.TimeField(null=True, blank=True)
     logout_time = models.TimeField(null=True, blank=True)
-    is_present = models.BooleanField(default=False)
+    status     = models.CharField(max_length=10, choices=STATUS_CHOICES, default='present')
 
     class Meta:
         unique_together = ('student', 'date')
 
     def __str__(self):
         return f"{self.student.name} - {self.date}"
+
+    @property
+    def is_present(self):
+        """Backward-compatible helper."""
+        return self.status == 'present'
+

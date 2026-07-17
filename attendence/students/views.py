@@ -64,17 +64,22 @@ class StudentAttendanceDetailView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         attendances = context['attendances']
-        present  = sum(1 for a in attendances if a.is_present)
-        total    = len(attendances)
+        present = sum(1 for a in attendances if a.status == 'present')
+        absent  = sum(1 for a in attendances if a.status == 'absent')
+        no_class = sum(1 for a in attendances if a.status == 'no_class')
+        total_class_days = present + absent
+        pct = f"{(present / total_class_days * 100):.1f}%" if total_class_days else "N/A"
+        
         context.update({
             'student':         self.student,
             'months':          list(enumerate(calendar.month_name))[1:],
             'selected_month':  self.request.GET.get('month', ''),
             'selected_year':   self.request.GET.get('year',  ''),
             'present_count':   present,
-            'absent_count':    total - present,
-            'total_count':     total,
-            'attendance_pct':  f"{(present / total * 100):.1f}%" if total else "N/A",
+            'absent_count':    absent,
+            'no_class_count':  no_class,
+            'total_count':     len(attendances),
+            'attendance_pct':  pct,
         })
         return context
 
@@ -205,15 +210,21 @@ def export_student_pdf(request, pk):
 
     data = [['Date', 'Mode', 'Login', 'Logout', 'Status']]
     present = 0
+    absent = 0
+    no_class = 0
     for r in records:
-        if r.is_present:
+        if r.status == 'present':
             present += 1
+        elif r.status == 'absent':
+            absent += 1
+        else:
+            no_class += 1
         data.append([
             str(r.date),
             r.get_mode_display(),
             r.login_time.strftime('%H:%M') if r.login_time else '—',
             r.logout_time.strftime('%H:%M') if r.logout_time else '—',
-            'Present' if r.is_present else 'Absent',
+            r.get_status_display(),
         ])
 
     if len(data) > 1:
@@ -233,14 +244,13 @@ def export_student_pdf(request, pk):
         elems.append(Paragraph("No attendance records for this period.", styles['Normal']))
 
     elems.append(Spacer(1, 8*mm))
-    total  = len(data) - 1
-    absent = total - present
-    pct    = f"{(present / total * 100):.1f}%" if total else "N/A"
+    total_class_days = present + absent
+    pct = f"{(present / total_class_days * 100):.1f}%" if total_class_days else "N/A"
 
     summary = Table(
-        [['Total', 'Present', 'Absent', 'Attendance %'],
-         [str(total), str(present), str(absent), pct]],
-        colWidths=[35*mm, 30*mm, 30*mm, 30*mm]
+        [['Present', 'Absent', 'No Class', 'Attendance %'],
+         [str(present), str(absent), str(no_class), pct]],
+        colWidths=[30*mm, 30*mm, 30*mm, 35*mm]
     )
     summary.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5b9cf6')),
@@ -317,15 +327,21 @@ def export_student_excel(request, pk):
 
     # Data
     present = 0
+    absent = 0
+    no_class = 0
     for i, r in enumerate(records, start=6):
-        status = 'Present' if r.is_present else 'Absent'
-        if r.is_present:
+        if r.status == 'present':
             present += 1
+        elif r.status == 'absent':
+            absent += 1
+        else:
+            no_class += 1
+
         ws.append([
             str(r.date), r.get_mode_display(),
             r.login_time.strftime('%H:%M') if r.login_time else '—',
             r.logout_time.strftime('%H:%M') if r.logout_time else '—',
-            status,
+            r.get_status_display(),
         ])
         bg = 'FFFFFF' if i % 2 == 0 else 'F5F5F7'
         row_fill = PatternFill('solid', fgColor=bg)
@@ -334,22 +350,22 @@ def export_student_excel(request, pk):
             c.fill = row_fill; c.border = thin; c.alignment = center
         # Colour status cell
         sc = ws.cell(row=i, column=5)
-        sc.font = Font(color='22C55E' if r.is_present else 'EF4444', bold=True, size=9)
+        status_color = '22C55E' if r.status == 'present' else ('EF4444' if r.status == 'absent' else 'F59E0B')
+        sc.font = Font(color=status_color, bold=True, size=9)
 
     # Summary
-    total  = records.count()
-    absent = total - present
-    pct    = f"{(present / total * 100):.1f}%" if total else "N/A"
+    total_class_days = present + absent
+    pct = f"{(present / total_class_days * 100):.1f}%" if total_class_days else "N/A"
 
     ws.append([])
     sr = ws.max_row + 1
-    for col, val in enumerate(['Total', 'Present', 'Absent', 'Attendance %', ''], start=1):
+    for col, val in enumerate(['Present', 'Absent', 'No Class', 'Attendance %', ''], start=1):
         c = ws.cell(row=sr, column=col, value=val)
         if col < 5:
             c.fill = PatternFill('solid', fgColor='5B9CF6')
             c.font = Font(color='FFFFFF', bold=True, size=9)
             c.alignment = center; c.border = thin
-    for col, val in enumerate([total, present, absent, pct, ''], start=1):
+    for col, val in enumerate([present, absent, no_class, pct, ''], start=1):
         c = ws.cell(row=sr + 1, column=col, value=val)
         if col < 5:
             c.font = Font(bold=True, size=9)

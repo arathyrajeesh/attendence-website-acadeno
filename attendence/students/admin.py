@@ -9,6 +9,6 @@ class StudentAdmin(admin.ModelAdmin):
 
 @admin.register(Attendance)
 class AttendanceAdmin(admin.ModelAdmin):
-    list_display = ('student', 'date', 'mode', 'login_time', 'logout_time', 'is_present')
-    list_filter = ('date', 'mode', 'is_present')
+    list_display = ('student', 'date', 'mode', 'login_time', 'logout_time', 'status')
+    list_filter = ('date', 'mode', 'status')
     search_fields = ('student__name', 'mode')

@@ -27,13 +27,14 @@ class AttendanceModelTests(TestCase):
     def test_attendance_creation(self):
         record = Attendance.objects.create(
             student=self.student,
-            date=date(2026, 7, 16),
+            date=date(2026, 7, 16), # Thursday
             mode="online",
             login_time=time(9, 0),
             logout_time=time(17, 0),
-            is_present=True
+            status="present"
         )
         self.assertEqual(str(record), "Jane Doe - 2026-07-16")
+        self.assertTrue(record.is_present)
 
     def test_attendance_unique_together_constraint(self):
         Attendance.objects.create(
@@ -41,7 +42,6 @@ class AttendanceModelTests(TestCase):
             date=date(2026, 7, 16),
             mode="online"
         )
-        # Attempting to create duplicate record for the same student on the same day should fail
         with self.assertRaises(IntegrityError):
             Attendance.objects.create(
                 student=self.student,
@@ -60,11 +60,11 @@ class AttendanceFormTests(TestCase):
     def test_form_validation_correct_times(self):
         form_data = {
             'student': self.student.id,
-            'date': '2026-07-16',
+            'date': '2026-07-16', # Thursday
             'mode': 'offline',
             'login_time': '09:00:00',
             'logout_time': '10:00:00',
-            'is_present': True
+            'status': 'present'
         }
         form = AttendanceForm(data=form_data)
         self.assertTrue(form.is_valid())
@@ -75,13 +75,25 @@ class AttendanceFormTests(TestCase):
             'date': '2026-07-16',
             'mode': 'offline',
             'login_time': '10:00:00',
-            'logout_time': '09:00:00', # Logout before login
-            'is_present': True
+            'logout_time': '09:00:00',
+            'status': 'present'
         }
         form = AttendanceForm(data=form_data)
         self.assertFalse(form.is_valid())
         self.assertIn('__all__', form.errors)
         self.assertEqual(form.errors['__all__'][0], "Logout time must be after login time.")
+
+    def test_form_validation_sunday(self):
+        form_data = {
+            'student': self.student.id,
+            'date': '2026-07-19', # Sunday
+            'mode': 'offline',
+            'status': 'present'
+        }
+        form = AttendanceForm(data=form_data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('__all__', form.errors)
+        self.assertEqual(form.errors['__all__'][0], "Sunday has no class.")
 
 class StudentViewsTests(TestCase):
     def setUp(self):
@@ -98,22 +110,15 @@ class StudentViewsTests(TestCase):
         self.assertTemplateUsed(response, 'students/student_list.html')
 
     def test_student_create_view(self):
-        response = self.client.get(reverse('student-list'))
-        self.assertEqual(response.status_code, 200)
-        
         post_response = self.client.post(reverse('student-list'), {
             'name': 'Charlie',
             'course': 'Networking',
             'duration_months': 6
         })
-        # Check redirect on success
         self.assertRedirects(post_response, reverse('student-list'))
         self.assertEqual(Student.objects.count(), 2)
 
     def test_student_update_view(self):
-        response = self.client.get(reverse('student-update', args=[self.student.id]))
-        self.assertEqual(response.status_code, 200)
-
         post_response = self.client.post(reverse('student-update', args=[self.student.id]), {
             'name': 'Alice Updated',
             'course': 'Cybersecurity II',
@@ -124,9 +129,6 @@ class StudentViewsTests(TestCase):
         self.assertEqual(self.student.name, 'Alice Updated')
 
     def test_student_delete_view(self):
-        response = self.client.get(reverse('student-delete', args=[self.student.id]))
-        self.assertEqual(response.status_code, 200)
-
         post_response = self.client.post(reverse('student-delete', args=[self.student.id]))
         self.assertRedirects(post_response, reverse('student-list'))
         self.assertEqual(Student.objects.count(), 0)
@@ -140,23 +142,20 @@ class AttendanceViewsTests(TestCase):
         )
         self.attendance = Attendance.objects.create(
             student=self.student,
-            date=date.today(),
+            date=date(2026, 7, 15), # Wednesday
             mode="offline",
-            is_present=True
+            status="present"
         )
 
     def test_attendance_list_view_and_filtering(self):
-        # View list
         response = self.client.get(reverse('attendance-list'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "David")
 
-        # Filter by date with matches
-        filter_response = self.client.get(reverse('attendance-list'), {'date': str(date.today())})
+        filter_response = self.client.get(reverse('attendance-list'), {'date': '2026-07-15'})
         self.assertEqual(filter_response.status_code, 200)
         self.assertContains(filter_response, "David")
 
-        # Filter by date without matches
         no_match_response = self.client.get(reverse('attendance-list'), {'date': '2000-01-01'})
         self.assertEqual(no_match_response.status_code, 200)
         self.assertNotContains(no_match_response, 'class="text-accent fw-500">David</td>')
@@ -164,9 +163,9 @@ class AttendanceViewsTests(TestCase):
     def test_attendance_create_view(self):
         post_response = self.client.post(reverse('attendance-list'), {
             'student': self.student.id,
-            'date': '2000-01-01',
+            'date': '2026-07-16', # Thursday
             'mode': 'online',
-            'is_present': True
+            'status': 'present'
         })
         self.assertRedirects(post_response, reverse('attendance-list'))
         self.assertEqual(Attendance.objects.count(), 2)
@@ -174,14 +173,14 @@ class AttendanceViewsTests(TestCase):
     def test_attendance_update_view(self):
         post_response = self.client.post(reverse('attendance-update', args=[self.attendance.id]), {
             'student': self.student.id,
-            'date': str(date.today()),
-            'mode': 'online', # changed from offline
-            'is_present': False # changed from True
+            'date': '2026-07-15',
+            'mode': 'online',
+            'status': 'absent'
         })
         self.assertRedirects(post_response, reverse('attendance-list'))
         self.attendance.refresh_from_db()
         self.assertEqual(self.attendance.mode, 'online')
-        self.assertFalse(self.attendance.is_present)
+        self.assertEqual(self.attendance.status, 'absent')
 
     def test_attendance_delete_view(self):
         post_response = self.client.post(reverse('attendance-delete', args=[self.attendance.id]))

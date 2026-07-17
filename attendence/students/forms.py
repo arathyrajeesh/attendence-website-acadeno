@@ -24,29 +24,33 @@ class StudentForm(forms.ModelForm):
 
 
 class AttendanceForm(forms.ModelForm):
-    # Render is_present as Present / Absent dropdown
-    is_present = forms.TypedChoiceField(
-        label='Status',
-        choices=[('True', 'Present'), ('False', 'Absent')],
-        coerce=lambda v: v == 'True' if isinstance(v, str) else bool(v),
-        widget=forms.Select(attrs={'class': 'field-select'}),
-    )
-
     class Meta:
         model = Attendance
-        fields = ['student', 'date', 'mode', 'login_time', 'logout_time', 'is_present']
+        fields = ['student', 'date', 'mode', 'login_time', 'logout_time', 'status']
         widgets = {
             'student': forms.Select(attrs={'class': 'field-select'}),
             'date': forms.DateInput(attrs={'class': 'field-input', 'type': 'date'}),
             'mode': forms.Select(attrs={'class': 'field-select'}),
             'login_time': forms.TimeInput(attrs={'class': 'field-input', 'type': 'time'}),
             'logout_time': forms.TimeInput(attrs={'class': 'field-input', 'type': 'time'}),
+            'status': forms.Select(attrs={'class': 'field-select'}),
         }
 
     def clean(self):
         cleaned_data = super().clean()
+        status = cleaned_data.get('status')
         login_time = cleaned_data.get('login_time')
         logout_time = cleaned_data.get('logout_time')
-        if login_time and logout_time and login_time >= logout_time:
-            raise forms.ValidationError("Logout time must be after login time.")
+        attendance_date = cleaned_data.get('date')
+
+        if attendance_date and attendance_date.weekday() == 6:
+            raise forms.ValidationError("Sunday has no class.")
+
+        if status == 'present':
+            if login_time and logout_time and login_time >= logout_time:
+                raise forms.ValidationError("Logout time must be after login time.")
+        else:
+            cleaned_data['login_time'] = None
+            cleaned_data['logout_time'] = None
+
         return cleaned_data
