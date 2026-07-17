@@ -72,7 +72,7 @@
             <tbody>
                 {% for student in students %}
                 <tr>
-                    <td class="text-accent fw-500">{{ student.name }}</td>
+                    <td><a href="{% url 'student-attendance' student.id %}" class="text-accent fw-500" style="text-decoration:none;">{{ student.name }}</a></td>
                     <td>{{ student.course }}</td>
                     <td>{{ student.duration_months }} months</td>
                     <td class="text-muted">{{ student.joined_date|date:"d M Y" }}</td>

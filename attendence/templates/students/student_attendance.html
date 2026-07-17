@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% block title %}{{ student.name }} — Attendance{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:4px;">
+    <div>
+        <a href="{% url 'student-list' %}" class="text-muted" style="font-size:12px; text-decoration:none;">← Students</a>
+        <h1 style="font-size:18px; font-weight:600; margin-top:4px; color:var(--text);">{{ student.name }}</h1>
+        <div class="text-muted" style="font-size:12px; margin-top:2px;">{{ student.course }} &nbsp;·&nbsp; {{ student.duration_months }} months &nbsp;·&nbsp; Joined {{ student.joined_date|date:"d M Y" }}</div>
+    </div>
+</div>
+
+<!-- Summary Stats -->
+<div style="display:flex; gap:12px; flex-wrap:wrap;">
+    <div class="card" style="flex:1; min-width:110px; text-align:center; padding:16px 12px;">
+        <div style="font-size:22px; font-weight:700; color:var(--text);">{{ total_count }}</div>
+        <div class="field-label" style="margin-top:4px;">Records</div>
+    </div>
+    <div class="card" style="flex:1; min-width:110px; text-align:center; padding:16px 12px;">
+        <div style="font-size:22px; font-weight:700; color:var(--success);">{{ present_count }}</div>
+        <div class="field-label" style="margin-top:4px;">Present</div>
+    </div>
+    <div class="card" style="flex:1; min-width:110px; text-align:center; padding:16px 12px;">
+        <div style="font-size:22px; font-weight:700; color:var(--danger);">{{ absent_count }}</div>
+        <div class="field-label" style="margin-top:4px;">Absent</div>
+    </div>
+    <div class="card" style="flex:1; min-width:110px; text-align:center; padding:16px 12px;">
+        <div style="font-size:22px; font-weight:700; color:var(--accent);">{{ attendance_pct }}</div>
+        <div class="field-label" style="margin-top:4px;">Attendance</div>
+    </div>
+</div>
+
+<!-- Filter + Download -->
+<div class="card">
+    <div class="section-header">
+        <div>
+            <div class="section-title">Attendance Records</div>
+            <div class="section-sub" style="margin-top:2px;">
+                {% if selected_month and selected_year %}
+                    Showing {{ selected_month|stringformat:"s"|default:"" }} / {{ selected_year }}
+                {% else %}
+                    All marked records
+                {% endif %}
+            </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+            <!-- Month/Year Filter -->
+            <form method="get" style="display:flex; gap:6px; align-items:flex-end; flex-wrap:wrap;">
+                <div class="field-group">
+                    <label class="field-label">Month</label>
+                    <select name="month" class="field-select" style="width:auto; min-width:105px;">
+                        <option value="">All months</option>
+                        {% for val, name in months %}
+                        <option value="{{ val }}" {% if val|stringformat:"s" == selected_month %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Year</label>
+                    <input type="number" name="year" class="field-input" value="{{ selected_year }}" placeholder="2026" min="2020" max="2030" style="width:70px;">
+                </div>
+                <button type="submit" class="btn btn-ghost" style="padding:6px 12px; font-size:12px;">Filter</button>
+                {% if selected_month or selected_year %}
+                <a href="{% url 'student-attendance' student.id %}" class="btn btn-ghost" style="padding:6px 12px; font-size:12px;">Clear</a>
+                {% endif %}
+            </form>
+            <!-- Download buttons -->
+            <a id="dl-pdf" href="{% url 'student-export-pdf' student.id %}{% if selected_month and selected_year %}?month={{ selected_month }}&year={{ selected_year }}{% endif %}"
+               class="btn btn-primary" style="font-size:12px; padding:6px 14px;">↓ PDF</a>
+            <a id="dl-xl" href="{% url 'student-export-excel' student.id %}{% if selected_month and selected_year %}?month={{ selected_month }}&year={{ selected_year }}{% endif %}"
+               class="btn btn-primary" style="font-size:12px; padding:6px 14px;">↓ Sheet</a>
+        </div>
+    </div>
+
+    <!-- Attendance Table -->
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Mode</th>
+                    <th>Login</th>
+                    <th>Logout</th>
+                    <th>Status</th>
+                    <th class="col-actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in attendances %}
+                <tr>
+                    <td class="fw-500">{{ record.date|date:"d M Y" }}</td>
+                    <td>
+                        {% if record.mode == 'online' %}
+                        <span class="badge badge-info">Online</span>
+                        {% else %}
+                        <span class="badge badge-warning">Offline</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-muted">{{ record.login_time|time:"H:i"|default:"—" }}</td>
+                    <td class="text-muted">{{ record.logout_time|time:"H:i"|default:"—" }}</td>
+                    <td>
+                        {% if record.is_present %}
+                        <span class="badge badge-success">Present</span>
+                        {% else %}
+                        <span class="badge badge-danger">Absent</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-actions">
+                        <a href="{% url 'attendance-update' record.id %}" class="action-btn edit">Edit</a>
+                        <a href="{% url 'attendance-delete' record.id %}" class="action-btn delete">Delete</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6">
+                    <div class="empty-state">No attendance records found{% if selected_month %} for this period{% endif %}.</div>
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

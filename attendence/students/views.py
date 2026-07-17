@@ -27,7 +27,7 @@ class StudentListView(FormMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['months'] = list(enumerate(calendar.month_name))[1:]  # [(1,'January'),...]
+        context['months'] = list(enumerate(calendar.month_name))[1:]
         return context
 
     def post(self, request, *args, **kwargs):
@@ -38,6 +38,45 @@ class StudentListView(FormMixin, ListView):
             messages.success(request, "Student added successfully.")
             return redirect(self.success_url)
         return self.render_to_response(self.get_context_data(form=form))
+
+
+class StudentAttendanceDetailView(ListView):
+    """All attendance records for a single student, with optional month/year filter."""
+    model = Attendance
+    template_name = 'students/student_attendance.html'
+    context_object_name = 'attendances'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.student = get_object_or_404(Student, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        qs = Attendance.objects.filter(student=self.student).order_by('date')
+        month = self.request.GET.get('month', '')
+        year  = self.request.GET.get('year',  '')
+        if month and year:
+            try:
+                qs = qs.filter(date__month=int(month), date__year=int(year))
+            except ValueError:
+                pass
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        attendances = context['attendances']
+        present  = sum(1 for a in attendances if a.is_present)
+        total    = len(attendances)
+        context.update({
+            'student':         self.student,
+            'months':          list(enumerate(calendar.month_name))[1:],
+            'selected_month':  self.request.GET.get('month', ''),
+            'selected_year':   self.request.GET.get('year',  ''),
+            'present_count':   present,
+            'absent_count':    total - present,
+            'total_count':     total,
+            'attendance_pct':  f"{(present / total * 100):.1f}%" if total else "N/A",
+        })
+        return context
 
 
 class StudentUpdateView(SuccessMessageMixin, UpdateView):
@@ -118,10 +157,15 @@ class AttendanceDeleteView(DeleteView):
 # ── Export Helpers ─────────────────────────────────────────────────────────────
 
 def _get_month_year(request):
+    """Return (month, year) from GET params, or (None, None) for all-records export."""
+    raw_month = request.GET.get('month', '').strip()
+    raw_year  = request.GET.get('year',  '').strip()
+    if not raw_month and not raw_year:
+        return None, None               # caller should export all records
     today = datetime.date.today()
     try:
-        month = int(request.GET.get('month', today.month))
-        year  = int(request.GET.get('year',  today.year))
+        month = int(raw_month) if raw_month else today.month
+        year  = int(raw_year)  if raw_year  else today.year
         if not (1 <= month <= 12):
             month = today.month
     except (ValueError, TypeError):
@@ -138,11 +182,13 @@ def export_student_pdf(request, pk):
 
     student = get_object_or_404(Student, pk=pk)
     month, year = _get_month_year(request)
-    month_name  = calendar.month_name[month]
 
-    records = (Attendance.objects
-               .filter(student=student, date__year=year, date__month=month)
-               .order_by('date'))
+    records = Attendance.objects.filter(student=student).order_by('date')
+    if month and year:
+        records = records.filter(date__year=year, date__month=month)
+        period_label = f"{calendar.month_name[month]} {year}"
+    else:
+        period_label = "All Records"
 
     buf  = io.BytesIO()
     doc  = SimpleDocTemplate(buf, pagesize=A4,
@@ -152,7 +198,7 @@ def export_student_pdf(request, pk):
     elems  = []
 
     elems.append(Paragraph("ATTENDANCE REPORT", styles['Title']))
-    elems.append(Paragraph(f"{student.name}  —  {month_name} {year}", styles['Heading2']))
+    elems.append(Paragraph(f"{student.name}  —  {period_label}", styles['Heading2']))
     elems.append(Paragraph(f"Course: {student.course}  |  Duration: {student.duration_months} months",
                             styles['Normal']))
     elems.append(Spacer(1, 8*mm))
@@ -212,7 +258,8 @@ def export_student_pdf(request, pk):
     doc.build(elems)
     buf.seek(0)
 
-    fname = f"{student.name.replace(' ', '_')}_{month_name}_{year}.pdf"
+    period_slug = period_label.replace(' ', '_')
+    fname = f"{student.name.replace(' ', '_')}_{period_slug}.pdf"
     response = HttpResponse(buf, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="{fname}"'
     return response
@@ -224,15 +271,19 @@ def export_student_excel(request, pk):
 
     student = get_object_or_404(Student, pk=pk)
     month, year = _get_month_year(request)
-    month_name  = calendar.month_name[month]
 
-    records = (Attendance.objects
-               .filter(student=student, date__year=year, date__month=month)
-               .order_by('date'))
+    records = Attendance.objects.filter(student=student).order_by('date')
+    if month and year:
+        records = records.filter(date__year=year, date__month=month)
+        period_label = f"{calendar.month_name[month]} {year}"
+        tab_title = f"{calendar.month_name[month][:3]} {year}"
+    else:
+        period_label = "All Records"
+        tab_title = "All Records"
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = f"{month_name[:3]} {year}"
+    ws.title = tab_title
 
     thin = Border(
         left=Side(style='thin', color='CCCCCC'), right=Side(style='thin', color='CCCCCC'),
@@ -242,8 +293,8 @@ def export_student_excel(request, pk):
 
     # Title block
     for row, text in enumerate([
-        f"ATTENDANCE REPORT",
-        f"{student.name}  —  {month_name} {year}",
+        "ATTENDANCE REPORT",
+        f"{student.name}  —  {period_label}",
         f"Course: {student.course}  |  Duration: {student.duration_months} months",
     ], start=1):
         ws.merge_cells(f'A{row}:E{row}')
@@ -311,7 +362,8 @@ def export_student_excel(request, pk):
     wb.save(buf)
     buf.seek(0)
 
-    fname = f"{student.name.replace(' ', '_')}_{month_name}_{year}.xlsx"
+    period_slug = period_label.replace(' ', '_')
+    fname = f"{student.name.replace(' ', '_')}_{period_slug}.xlsx"
     response = HttpResponse(buf,
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename="{fname}"'
