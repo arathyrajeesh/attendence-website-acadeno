@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}Students — AMS{% endblock %}
+
+{% block content %}
+<!-- Add Student Form -->
+<div class="card">
+    <div class="card-title">Add student</div>
+    <form method="post" style="display:flex; flex-direction:column; gap:10px; max-width:320px;">
+        {% csrf_token %}
+        <div class="field-group">
+            <label class="field-label">Name</label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="field-error">{{ form.name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="field-group">
+            <label class="field-label">Course</label>
+            {{ form.course }}
+            {% if form.course.errors %}<div class="field-error">{{ form.course.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="field-group">
+            <label class="field-label">Duration (months)</label>
+            {{ form.duration_months }}
+            {% if form.duration_months.errors %}<div class="field-error">{{ form.duration_months.errors.0 }}</div>{% endif %}
+        </div>
+        <div style="margin-top:4px;">
+            <button type="submit" class="btn btn-primary">+ Add student</button>
+        </div>
+    </form>
+</div>
+
+<!-- Students Table -->
+<div class="card">
+    <div class="section-header">
+        <span class="section-title">Students</span>
+        <span class="section-sub">{{ students|length }} total</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Course</th>
+                    <th>Duration</th>
+                    <th>Joined</th>
+                    <th class="col-actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                <tr>
+                    <td class="text-accent fw-500">{{ student.name }}</td>
+                    <td>{{ student.course }}</td>
+                    <td>{{ student.duration_months }} months</td>
+                    <td class="text-muted">{{ student.joined_date|date:"d M Y" }}</td>
+                    <td class="col-actions">
+                        <a href="{% url 'student-update' student.id %}" class="action-btn edit">Edit</a>
+                        <a href="{% url 'student-delete' student.id %}" class="action-btn delete">Delete</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5"><div class="empty-state">No students yet — add one above.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

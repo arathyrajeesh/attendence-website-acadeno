@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}{% if object %}Edit Student{% else %}Add Student{% endif %} — AMS{% endblock %}
+
+{% block content %}
+<div style="max-width:360px; margin:0 auto;">
+    <div style="margin-bottom:16px;">
+        <a href="{% url 'student-list' %}" class="text-muted" style="font-size:13px; text-decoration:none;">← Back to Students</a>
+    </div>
+    <div class="card">
+        <div class="card-title">{% if object %}Edit student{% else %}Add student{% endif %}</div>
+        <form method="post" style="display:flex; flex-direction:column; gap:10px;">
+            {% csrf_token %}
+            <div class="field-group">
+                <label class="field-label">Name</label>
+                {{ form.name }}
+                {% if form.name.errors %}<div class="field-error">{{ form.name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="field-group">
+                <label class="field-label">Course</label>
+                {{ form.course }}
+                {% if form.course.errors %}<div class="field-error">{{ form.course.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="field-group">
+                <label class="field-label">Duration (months)</label>
+                {{ form.duration_months }}
+                {% if form.duration_months.errors %}<div class="field-error">{{ form.duration_months.errors.0 }}</div>{% endif %}
+            </div>
+            <div style="display:flex; gap:8px; margin-top:4px;">
+                <button type="submit" class="btn btn-primary">{% if object %}Save changes{% else %}+ Add student{% endif %}</button>
+                <a href="{% url 'student-list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

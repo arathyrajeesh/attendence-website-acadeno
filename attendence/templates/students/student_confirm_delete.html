@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Delete Student — AMS{% endblock %}
+
+{% block content %}
+<div class="delete-wrap">
+    <div class="card">
+        <div class="card-title">Delete student</div>
+        <p style="color: var(--text-muted); font-size:13px; margin-bottom:20px;">
+            Are you sure you want to delete <strong style="color:var(--text);">{{ object.name }}</strong>?
+            This will also remove all their attendance records.
+        </p>
+        <form method="post" style="display:flex; gap:8px;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger-outline">Delete</button>
+            <a href="{% url 'student-list' %}" class="btn btn-ghost">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

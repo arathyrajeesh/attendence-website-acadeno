@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Edit Attendance — AMS{% endblock %}
+
+{% block content %}
+<div style="max-width:560px; margin:0 auto;">
+    <div style="margin-bottom:16px;">
+        <a href="{% url 'attendance-list' %}" class="text-muted" style="font-size:13px; text-decoration:none;">← Back to Attendance</a>
+    </div>
+    <div class="card">
+        <div class="card-title">Edit attendance — {{ object.student.name }}</div>
+        <form method="post">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+            <div class="field-error" style="margin-bottom:10px;">{{ form.non_field_errors.0 }}</div>
+            {% endif %}
+            <div class="form-row">
+                <div class="field-group" style="flex:2; min-width:140px;">
+                    <label class="field-label">Student</label>
+                    {{ form.student }}
+                    {% if form.student.errors %}<div class="field-error">{{ form.student.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="field-group" style="flex:1.2; min-width:130px;">
+                    <label class="field-label">Date</label>
+                    {{ form.date }}
+                    {% if form.date.errors %}<div class="field-error">{{ form.date.errors.0 }}</div>{% endif %}
+                </div>
+            </div>
+            <div class="form-row" style="margin-top:10px;">
+                <div class="field-group" style="flex:1; min-width:110px;">
+                    <label class="field-label">Mode</label>
+                    {{ form.mode }}
+                    {% if form.mode.errors %}<div class="field-error">{{ form.mode.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="field-group" style="flex:1; min-width:110px;">
+                    <label class="field-label">Status</label>
+                    {{ form.is_present }}
+                    {% if form.is_present.errors %}<div class="field-error">{{ form.is_present.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="field-group" style="flex:1; min-width:110px;">
+                    <label class="field-label">Login time</label>
+                    {{ form.login_time }}
+                    {% if form.login_time.errors %}<div class="field-error">{{ form.login_time.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="field-group" style="flex:1; min-width:110px;">
+                    <label class="field-label">Logout time</label>
+                    {{ form.logout_time }}
+                    {% if form.logout_time.errors %}<div class="field-error">{{ form.logout_time.errors.0 }}</div>{% endif %}
+                </div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:14px;">
+                <button type="submit" class="btn btn-primary">Save changes</button>
+                <a href="{% url 'attendance-list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

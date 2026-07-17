@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}Attendance — AMS{% endblock %}
+
+{% block content %}
+<!-- Mark Attendance Form -->
+<div class="card">
+    <div class="card-title">Mark attendance</div>
+    <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="field-error" style="margin-bottom:10px;">{{ form.non_field_errors.0 }}</div>
+        {% endif %}
+        <div class="form-row">
+            <div class="field-group" style="flex:2; min-width:140px;">
+                <label class="field-label">Student</label>
+                {{ form.student }}
+                {% if form.student.errors %}<div class="field-error">{{ form.student.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="field-group" style="flex:1.2; min-width:130px;">
+                <label class="field-label">Date</label>
+                {{ form.date }}
+                {% if form.date.errors %}<div class="field-error">{{ form.date.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="field-group" style="flex:1; min-width:110px;">
+                <label class="field-label">Mode</label>
+                {{ form.mode }}
+                {% if form.mode.errors %}<div class="field-error">{{ form.mode.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="field-group" style="flex:1; min-width:110px;">
+                <label class="field-label">Status</label>
+                {{ form.is_present }}
+                {% if form.is_present.errors %}<div class="field-error">{{ form.is_present.errors.0 }}</div>{% endif %}
+            </div>
+        </div>
+        <div class="form-row" style="margin-top:10px;">
+            <div class="field-group" style="flex:1; min-width:130px;">
+                <label class="field-label">Login time</label>
+                {{ form.login_time }}
+                {% if form.login_time.errors %}<div class="field-error">{{ form.login_time.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="field-group" style="flex:1; min-width:130px;">
+                <label class="field-label">Logout time</label>
+                {{ form.logout_time }}
+                {% if form.logout_time.errors %}<div class="field-error">{{ form.logout_time.errors.0 }}</div>{% endif %}
+            </div>
+            <div style="flex:2;"></div>
+        </div>
+        <div style="margin-top:14px;">
+            <button type="submit" class="btn btn-primary">✓ Save attendance</button>
+        </div>
+    </form>
+</div>
+
+<!-- Records Table -->
+<div class="card">
+    <div class="section-header">
+        <span class="section-title">
+            {% if is_today %}Today's records{% else %}Records for {{ selected_date }}{% endif %}
+        </span>
+        <div class="filter-row">
+            <form method="get" style="display:flex; align-items:center; gap:8px;">
+                <input type="date" name="date" class="field-input" value="{{ selected_date }}" style="width:auto;">
+                <button type="submit" class="btn btn-ghost" style="padding:6px 12px; font-size:12px;">Filter</button>
+                {% if not is_today %}
+                <a href="{% url 'attendance-list' %}" class="btn btn-ghost" style="padding:6px 12px; font-size:12px;">Today</a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Mode</th>
+                    <th>Login</th>
+                    <th>Logout</th>
+                    <th>Status</th>
+                    <th class="col-actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in attendances %}
+                <tr>
+                    <td class="text-accent fw-500">{{ record.student.name }}</td>
+                    <td>{{ record.get_mode_display }}</td>
+                    <td class="text-muted">{{ record.login_time|time:"H:i"|default:"—" }}</td>
+                    <td class="text-muted">{{ record.logout_time|time:"H:i"|default:"—" }}</td>
+                    <td>
+                        {% if record.is_present %}
+                        <span class="badge badge-success">Present</span>
+                        {% else %}
+                        <span class="badge badge-danger">Absent</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-actions">
+                        <a href="{% url 'attendance-update' record.id %}" class="action-btn edit">Edit</a>
+                        <a href="{% url 'attendance-delete' record.id %}" class="action-btn delete">Delete</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><div class="empty-state">No records found{% if not is_today %} for this date{% endif %}.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
