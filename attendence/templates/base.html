@@ -87,6 +87,10 @@
         .badge-danger { background: rgba(239,68,68,0.12); color: var(--danger); }
         .badge-info { background: rgba(91,156,246,0.12); color: var(--accent); }
         .badge-warning { background: rgba(245,158,11,0.12); color: var(--warning); }
+        .badge-batch { background: rgba(167,139,250,0.12); color: #a78bfa; }
+        .duration-pill { display: inline-flex; align-items: center; gap: 6px; }
+        .duration-pill .dur-part { background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: var(--text-sub); }
+        .duration-pill .dur-sep { color: var(--text-muted); font-size: 11px; }
 
         /* Section header */
         .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -196,7 +200,8 @@
             <img src="{% static 'students/logo.png' %}" alt="Acadeno" class="brand-logo-img">
         </a>
         <ul class="navbar-nav">
-            <li><a href="{% url 'student-list' %}" class="nav-link {% if 'student' in request.resolver_match.url_name %}active{% endif %}">Students</a></li>
+            <li><a href="{% url 'student-list' %}" class="nav-link {% if 'student' in request.resolver_match.url_name and 'batch' not in request.resolver_match.url_name %}active{% endif %}">Students</a></li>
+            <li><a href="{% url 'batch-import' %}" class="nav-link {% if 'batch' in request.resolver_match.url_name %}active{% endif %}">Batches</a></li>
             <li><a href="{% url 'attendance-list' %}" class="nav-link {% if 'attendance' in request.resolver_match.url_name %}active{% endif %}">Attendance</a></li>
         </ul>
     </nav>

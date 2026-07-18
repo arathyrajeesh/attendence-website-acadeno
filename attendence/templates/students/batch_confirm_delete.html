@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Delete Batch — AMS{% endblock %}
+
+{% block content %}
+<div class="delete-wrap">
+    <div class="card" style="text-align:center;">
+        <div style="font-size:32px; margin-bottom:12px;">🗑️</div>
+        <div class="card-title">Delete Batch?</div>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:6px;">
+            You are about to delete the batch:
+        </p>
+        <p style="color:var(--text); font-weight:600; margin-bottom:4px;">{{ object.name }}</p>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">
+            This will <strong style="color:var(--danger);">not</strong> delete the students themselves —
+            they will simply be unlinked from this batch.
+        </p>
+        <form method="post" style="display:flex; gap:10px; justify-content:center;">
+            {% csrf_token %}
+            <a href="{% url 'batch-import' %}" class="btn btn-ghost">Cancel</a>
+            <button type="submit" class="btn btn-danger-outline">Yes, delete batch</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

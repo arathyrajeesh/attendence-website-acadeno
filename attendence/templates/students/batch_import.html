@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% block title %}Batch Import — AMS{% endblock %}
+
+{% block content %}
+
+<!-- Batch Import Form -->
+<div class="card">
+    <div class="card-title">🏫 Add Group / Batch</div>
+    <p style="color:var(--text-muted); font-size:13px; margin-bottom:18px; margin-top:-8px;">
+        Add an entire college or institution batch at once. Set the shared course and duration, then paste all student names.
+    </p>
+    <form method="post">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div class="msg error" style="margin-bottom:14px;">{{ form.non_field_errors.0 }}</div>
+        {% endif %}
+
+        <!-- Row 1: Batch name full width -->
+        <div class="field-group" style="margin-bottom:12px;">
+            <label class="field-label">Batch / College Name</label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="field-error">{{ form.name.errors.0 }}</div>{% endif %}
+        </div>
+
+        <!-- Row 2: Course -->
+        <div class="field-group" style="margin-bottom:12px;">
+            <label class="field-label">Course</label>
+            {{ form.course }}
+            {% if form.course.errors %}<div class="field-error">{{ form.course.errors.0 }}</div>{% endif %}
+        </div>
+
+        <!-- Row 3: Duration -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div class="field-group">
+                <label class="field-label">Total Hours</label>
+                {{ form.duration_hours }}
+                {% if form.duration_hours.errors %}<div class="field-error">{{ form.duration_hours.errors.0 }}</div>{% endif %}
+                <span style="font-size:11px; color:var(--text-muted); margin-top:3px; display:block;">e.g. 100</span>
+            </div>
+            <div class="field-group">
+                <label class="field-label">Total Days</label>
+                {{ form.duration_days }}
+                {% if form.duration_days.errors %}<div class="field-error">{{ form.duration_days.errors.0 }}</div>{% endif %}
+                <span style="font-size:11px; color:var(--text-muted); margin-top:3px; display:block;">e.g. 15</span>
+            </div>
+        </div>
+
+        <!-- Duration preview -->
+        <div id="dur-preview" style="display:none; margin-bottom:16px; padding:8px 12px; background:rgba(167,139,250,0.06); border:1px solid rgba(167,139,250,0.2); border-radius:7px; font-size:12px; color:#a78bfa;">
+            📅 Duration: <strong id="dur-text">—</strong>
+        </div>
+
+        <!-- Row 4: Student names textarea -->
+        <div class="field-group" style="margin-bottom:16px;">
+            <label class="field-label">Student Names (one per line)</label>
+            {{ form.student_names }}
+            {% if form.student_names.errors %}<div class="field-error">{{ form.student_names.errors.0 }}</div>{% endif %}
+            <span id="name-count" style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">0 students</span>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center;">
+            <button type="submit" class="btn btn-primary">🏫 Import Batch</button>
+            <a href="{% url 'student-list' %}" class="btn btn-ghost">← Back</a>
+        </div>
+    </form>
+</div>
+
+<!-- Existing Batches List -->
+<div class="card">
+    <div class="section-header">
+        <span class="section-title">All Batches</span>
+        <span class="section-sub">{{ batches|length }} total</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Batch / College</th>
+                    <th>Course</th>
+                    <th>Duration</th>
+                    <th>Students</th>
+                    <th>Created</th>
+                    <th class="col-actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for batch in batches %}
+                <tr>
+                    <td>
+                        <a href="{% url 'batch-detail' batch.id %}" class="text-accent fw-500" style="text-decoration:none;">
+                            {{ batch.name }}
+                        </a>
+                    </td>
+                    <td>{{ batch.course }}</td>
+                    <td>
+                        <div class="duration-pill">
+                            {% if batch.duration_hours %}<span class="dur-part">{{ batch.duration_hours }} hrs</span>{% endif %}
+                            {% if batch.duration_hours and batch.duration_days %}<span class="dur-sep">&</span>{% endif %}
+                            {% if batch.duration_days %}<span class="dur-part">{{ batch.duration_days }} days</span>{% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge badge-batch">{{ batch.students.count }} students</span>
+                    </td>
+                    <td class="text-muted">{{ batch.created_at|date:"d M Y" }}</td>
+                    <td class="col-actions">
+                        <a href="{% url 'batch-detail' batch.id %}" class="action-btn edit">View</a>
+                        <a href="{% url 'batch-delete' batch.id %}" class="action-btn delete">Delete</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><div class="empty-state">No batches yet — create one above.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Live student count
+    const textarea = document.getElementById('id_student_names');
+    const countEl  = document.getElementById('name-count');
+    function updateCount() {
+        const names = textarea.value.split('\n').filter(n => n.trim().length > 0);
+        countEl.textContent = names.length + ' student' + (names.length !== 1 ? 's' : '');
+    }
+    textarea.addEventListener('input', updateCount);
+
+    // Live duration preview
+    const hoursEl = document.getElementById('id_duration_hours');
+    const daysEl  = document.getElementById('id_duration_days');
+    const preview = document.getElementById('dur-preview');
+    const durText = document.getElementById('dur-text');
+
+    function updatePreview() {
+        const h = parseInt(hoursEl.value) || 0;
+        const d = parseInt(daysEl.value)  || 0;
+        if (h || d) {
+            let parts = [];
+            if (h) parts.push(h + ' hour' + (h !== 1 ? 's' : ''));
+            if (d) parts.push(d + ' day'  + (d !== 1 ? 's' : ''));
+            durText.textContent = parts.join(' and ');
+            preview.style.display = 'block';
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+    hoursEl.addEventListener('input', updatePreview);
+    daysEl.addEventListener('input',  updatePreview);
+</script>
+{% endblock %}

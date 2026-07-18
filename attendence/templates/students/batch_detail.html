@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}{{ batch.name }} — Batch Detail — AMS{% endblock %}
+
+{% block content %}
+
+<!-- Batch Header -->
+<div class="card">
+    <div class="section-header" style="align-items:flex-start;">
+        <div>
+            <div class="section-title" style="font-size:16px;">🏫 {{ batch.name }}</div>
+            <div class="section-sub" style="margin-top:6px;">{{ batch.course }}</div>
+            <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <div class="duration-pill">
+                    {% if batch.duration_hours %}<span class="dur-part">{{ batch.duration_hours }} hrs</span>{% endif %}
+                    {% if batch.duration_hours and batch.duration_days %}<span class="dur-sep">&</span>{% endif %}
+                    {% if batch.duration_days %}<span class="dur-part">{{ batch.duration_days }} days</span>{% endif %}
+                </div>
+                <span class="badge badge-batch">{{ students|length }} students</span>
+                <span class="text-muted" style="font-size:12px;">Created {{ batch.created_at|date:"d M Y" }}</span>
+            </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <a href="{% url 'batch-import' %}" class="btn btn-ghost">← Batches</a>
+            <a href="{% url 'batch-delete' batch.id %}" class="btn btn-danger-outline">Delete Batch</a>
+        </div>
+    </div>
+</div>
+
+<!-- Students in Batch -->
+<div class="card">
+    <div class="section-header">
+        <span class="section-title">Students in this Batch</span>
+        <span class="section-sub">{{ students|length }} total</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Course</th>
+                    <th>Duration</th>
+                    <th>Joined</th>
+                    <th class="col-actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                <tr>
+                    <td class="text-muted" style="font-size:12px; width:36px;">{{ forloop.counter }}</td>
+                    <td>
+                        <a href="{% url 'student-attendance' student.id %}" class="text-accent fw-500" style="text-decoration:none;">
+                            {{ student.name }}
+                        </a>
+                    </td>
+                    <td>{{ student.course }}</td>
+                    <td>
+                        <div class="duration-pill">
+                            {% if student.duration_hours %}<span class="dur-part">{{ student.duration_hours }} hrs</span>{% endif %}
+                            {% if student.duration_hours and student.duration_days %}<span class="dur-sep">&</span>{% endif %}
+                            {% if student.duration_days %}<span class="dur-part">{{ student.duration_days }} days</span>{% endif %}
+                        </div>
+                    </td>
+                    <td class="text-muted">{{ student.joined_date|date:"d M Y" }}</td>
+                    <td class="col-actions">
+                        <a href="{% url 'student-attendance' student.id %}" class="action-btn edit">Attendance</a>
+                        <a href="{% url 'student-update' student.id %}" class="action-btn edit">Edit</a>
+                        <a href="{% url 'student-delete' student.id %}" class="action-btn delete">Delete</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><div class="empty-state">No students in this batch.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

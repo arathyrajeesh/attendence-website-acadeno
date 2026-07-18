@@ -1,17 +1,18 @@
 import io
 import calendar
 import datetime
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, get_object_or_404
 from django.urls import reverse_lazy
 from django.contrib import messages
 from django.contrib.messages.views import SuccessMessageMixin
-from django.views.generic import UpdateView, DeleteView
+from django.views.generic import UpdateView, DeleteView, DetailView
 from django.views.generic.list import ListView
-from django.views.generic.edit import FormMixin
+from django.views.generic.edit import FormMixin, CreateView
+from django.db import transaction
 
-from .models import Student, Attendance
-from .forms import StudentForm, AttendanceForm
+from .models import Student, Attendance, Batch
+from .forms import StudentForm, AttendanceForm, BatchForm
 
 
 # ── Student Views ──────────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ class StudentListView(FormMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['months'] = list(enumerate(calendar.month_name))[1:]
+        context['batches'] = Batch.objects.order_by('-created_at')
         return context
 
     def post(self, request, *args, **kwargs):
@@ -64,22 +66,22 @@ class StudentAttendanceDetailView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         attendances = context['attendances']
-        present = sum(1 for a in attendances if a.status == 'present')
-        absent  = sum(1 for a in attendances if a.status == 'absent')
+        present  = sum(1 for a in attendances if a.status == 'present')
+        absent   = sum(1 for a in attendances if a.status == 'absent')
         no_class = sum(1 for a in attendances if a.status == 'no_class')
         total_class_days = present + absent
         pct = f"{(present / total_class_days * 100):.1f}%" if total_class_days else "N/A"
-        
+
         context.update({
-            'student':         self.student,
-            'months':          list(enumerate(calendar.month_name))[1:],
-            'selected_month':  self.request.GET.get('month', ''),
-            'selected_year':   self.request.GET.get('year',  ''),
-            'present_count':   present,
-            'absent_count':    absent,
-            'no_class_count':  no_class,
-            'total_count':     len(attendances),
-            'attendance_pct':  pct,
+            'student':        self.student,
+            'months':         list(enumerate(calendar.month_name))[1:],
+            'selected_month': self.request.GET.get('month', ''),
+            'selected_year':  self.request.GET.get('year',  ''),
+            'present_count':  present,
+            'absent_count':   absent,
+            'no_class_count': no_class,
+            'total_count':    len(attendances),
+            'attendance_pct': pct,
         })
         return context
 
@@ -99,6 +101,76 @@ class StudentDeleteView(DeleteView):
 
     def post(self, request, *args, **kwargs):
         messages.success(request, "Student deleted successfully.")
+        return super().post(request, *args, **kwargs)
+
+
+# ── Batch Views ────────────────────────────────────────────────────────────────
+
+class BatchImportView(FormMixin, ListView):
+    """
+    Batch/group import: enter a college name, course, hours+days duration,
+    and paste a list of student names to add them all at once.
+    """
+    model = Batch
+    template_name = 'students/batch_import.html'
+    context_object_name = 'batches'
+    ordering = ['-created_at']
+    form_class = BatchForm
+    success_url = reverse_lazy('batch-import')
+
+    def post(self, request, *args, **kwargs):
+        self.object_list = self.get_queryset()
+        form = BatchForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                batch = form.save()
+                names = form.cleaned_data['parsed_names']
+                students = [
+                    Student(
+                        name=n,
+                        course=batch.course,
+                        duration_hours=batch.duration_hours,
+                        duration_days=batch.duration_days,
+                        batch=batch,
+                    )
+                    for n in names
+                ]
+                Student.objects.bulk_create(students)
+            messages.success(
+                request,
+                f"✅ Batch '{batch.name}' created with {len(names)} students "
+                f"({batch.duration_hours} hrs, {batch.duration_days} days)."
+            )
+            return redirect(self.success_url)
+        return self.render_to_response(self.get_context_data(form=form))
+
+
+class BatchDetailView(ListView):
+    """Show all students belonging to a specific batch."""
+    model = Student
+    template_name = 'students/batch_detail.html'
+    context_object_name = 'students'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.batch = get_object_or_404(Batch, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return Student.objects.filter(batch=self.batch).order_by('name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['batch'] = self.batch
+        return context
+
+
+class BatchDeleteView(DeleteView):
+    model = Batch
+    template_name = 'students/batch_confirm_delete.html'
+    success_url = reverse_lazy('batch-import')
+
+    def post(self, request, *args, **kwargs):
+        messages.success(request, "Batch deleted successfully.")
         return super().post(request, *args, **kwargs)
 
 
@@ -166,7 +238,7 @@ def _get_month_year(request):
     raw_month = request.GET.get('month', '').strip()
     raw_year  = request.GET.get('year',  '').strip()
     if not raw_month and not raw_year:
-        return None, None               # caller should export all records
+        return None, None
     today = datetime.date.today()
     try:
         month = int(raw_month) if raw_month else today.month
@@ -204,14 +276,15 @@ def export_student_pdf(request, pk):
 
     elems.append(Paragraph("ATTENDANCE REPORT", styles['Title']))
     elems.append(Paragraph(f"{student.name}  —  {period_label}", styles['Heading2']))
-    elems.append(Paragraph(f"Course: {student.course}  |  Duration: {student.duration_months} months",
-                            styles['Normal']))
+    elems.append(Paragraph(
+        f"Course: {student.course}  |  Duration: {student.duration_display}"
+        + (f"  |  Batch: {student.batch.name}" if student.batch else ""),
+        styles['Normal']
+    ))
     elems.append(Spacer(1, 8*mm))
 
     data = [['Date', 'Mode', 'Login', 'Logout', 'Status']]
-    present = 0
-    absent = 0
-    no_class = 0
+    present = absent = no_class = 0
     for r in records:
         if r.status == 'present':
             present += 1
@@ -286,10 +359,10 @@ def export_student_excel(request, pk):
     if month and year:
         records = records.filter(date__year=year, date__month=month)
         period_label = f"{calendar.month_name[month]} {year}"
-        tab_title = f"{calendar.month_name[month][:3]} {year}"
+        tab_title    = f"{calendar.month_name[month][:3]} {year}"
     else:
         period_label = "All Records"
-        tab_title = "All Records"
+        tab_title    = "All Records"
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -301,11 +374,12 @@ def export_student_excel(request, pk):
     )
     center = Alignment(horizontal='center', vertical='center')
 
-    # Title block
+    duration_str = student.duration_display
+    batch_str = f"  |  Batch: {student.batch.name}" if student.batch else ""
     for row, text in enumerate([
         "ATTENDANCE REPORT",
         f"{student.name}  —  {period_label}",
-        f"Course: {student.course}  |  Duration: {student.duration_months} months",
+        f"Course: {student.course}  |  Duration: {duration_str}{batch_str}",
     ], start=1):
         ws.merge_cells(f'A{row}:E{row}')
         ws[f'A{row}'] = text
@@ -314,7 +388,6 @@ def export_student_excel(request, pk):
 
     ws.append([])  # blank
 
-    # Header row (row 5)
     headers = ['Date', 'Mode', 'Login', 'Logout', 'Status']
     ws.append(headers)
     hdr_fill = PatternFill('solid', fgColor='1A1A1D')
@@ -325,10 +398,7 @@ def export_student_excel(request, pk):
         c.alignment = center
         c.border = thin
 
-    # Data
-    present = 0
-    absent = 0
-    no_class = 0
+    present = absent = no_class = 0
     for i, r in enumerate(records, start=6):
         if r.status == 'present':
             present += 1
@@ -348,12 +418,10 @@ def export_student_excel(request, pk):
         for col in range(1, 6):
             c = ws.cell(row=i, column=col)
             c.fill = row_fill; c.border = thin; c.alignment = center
-        # Colour status cell
         sc = ws.cell(row=i, column=5)
         status_color = '22C55E' if r.status == 'present' else ('EF4444' if r.status == 'absent' else 'F59E0B')
         sc.font = Font(color=status_color, bold=True, size=9)
 
-    # Summary
     total_class_days = present + absent
     pct = f"{(present / total_class_days * 100):.1f}%" if total_class_days else "N/A"
 

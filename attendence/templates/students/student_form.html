@@ -2,13 +2,13 @@
 {% block title %}{% if object %}Edit Student{% else %}Add Student{% endif %} — AMS{% endblock %}
 
 {% block content %}
-<div style="max-width:360px; margin:0 auto;">
+<div style="max-width:420px; margin:0 auto;">
     <div style="margin-bottom:16px;">
         <a href="{% url 'student-list' %}" class="text-muted" style="font-size:13px; text-decoration:none;">← Back to Students</a>
     </div>
     <div class="card">
         <div class="card-title">{% if object %}Edit student{% else %}Add student{% endif %}</div>
-        <form method="post" style="display:flex; flex-direction:column; gap:10px;">
+        <form method="post" style="display:flex; flex-direction:column; gap:12px;">
             {% csrf_token %}
             <div class="field-group">
                 <label class="field-label">Name</label>
@@ -20,10 +20,21 @@
                 {{ form.course }}
                 {% if form.course.errors %}<div class="field-error">{{ form.course.errors.0 }}</div>{% endif %}
             </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="field-group">
+                    <label class="field-label">Duration — Hours</label>
+                    {{ form.duration_hours }}
+                    {% if form.duration_hours.errors %}<div class="field-error">{{ form.duration_hours.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Duration — Days</label>
+                    {{ form.duration_days }}
+                    {% if form.duration_days.errors %}<div class="field-error">{{ form.duration_days.errors.0 }}</div>{% endif %}
+                </div>
+            </div>
             <div class="field-group">
-                <label class="field-label">Duration (months)</label>
-                {{ form.duration_months }}
-                {% if form.duration_months.errors %}<div class="field-error">{{ form.duration_months.errors.0 }}</div>{% endif %}
+                <label class="field-label">Batch / Group (optional)</label>
+                {{ form.batch }}
             </div>
             <div style="display:flex; gap:8px; margin-top:4px;">
                 <button type="submit" class="btn btn-primary">{% if object %}Save changes{% else %}+ Add student{% endif %}</button>

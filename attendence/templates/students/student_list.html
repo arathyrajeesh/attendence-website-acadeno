@@ -5,25 +5,35 @@
 <!-- Add Student Form -->
 <div class="card">
     <div class="card-title">Add student</div>
-    <form method="post" style="display:flex; flex-direction:column; gap:10px; max-width:320px;">
+    <form method="post" style="display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; max-width:480px;">
         {% csrf_token %}
-        <div class="field-group">
+        <div class="field-group" style="grid-column:1/-1;">
             <label class="field-label">Name</label>
             {{ form.name }}
             {% if form.name.errors %}<div class="field-error">{{ form.name.errors.0 }}</div>{% endif %}
         </div>
-        <div class="field-group">
+        <div class="field-group" style="grid-column:1/-1;">
             <label class="field-label">Course</label>
             {{ form.course }}
             {% if form.course.errors %}<div class="field-error">{{ form.course.errors.0 }}</div>{% endif %}
         </div>
         <div class="field-group">
-            <label class="field-label">Duration (months)</label>
-            {{ form.duration_months }}
-            {% if form.duration_months.errors %}<div class="field-error">{{ form.duration_months.errors.0 }}</div>{% endif %}
+            <label class="field-label">Duration — Hours</label>
+            {{ form.duration_hours }}
+            {% if form.duration_hours.errors %}<div class="field-error">{{ form.duration_hours.errors.0 }}</div>{% endif %}
         </div>
-        <div style="margin-top:4px;">
+        <div class="field-group">
+            <label class="field-label">Duration — Days</label>
+            {{ form.duration_days }}
+            {% if form.duration_days.errors %}<div class="field-error">{{ form.duration_days.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="field-group" style="grid-column:1/-1;">
+            <label class="field-label">Batch / Group (optional)</label>
+            {{ form.batch }}
+        </div>
+        <div style="margin-top:4px; grid-column:1/-1;">
             <button type="submit" class="btn btn-primary">+ Add student</button>
+            <a href="{% url 'batch-import' %}" class="btn btn-ghost" style="margin-left:8px;">🏫 Import group</a>
         </div>
     </form>
 </div>
@@ -65,6 +75,7 @@
                     <th>Name</th>
                     <th>Course</th>
                     <th>Duration</th>
+                    <th>Batch</th>
                     <th>Joined</th>
                     <th class="col-actions">Actions</th>
                 </tr>
@@ -74,7 +85,21 @@
                 <tr>
                     <td><a href="{% url 'student-attendance' student.id %}" class="text-accent fw-500" style="text-decoration:none;">{{ student.name }}</a></td>
                     <td>{{ student.course }}</td>
-                    <td>{{ student.duration_months }} months</td>
+                    <td>
+                        <div class="duration-pill">
+                            {% if student.duration_hours %}<span class="dur-part">{{ student.duration_hours }} hrs</span>{% endif %}
+                            {% if student.duration_hours and student.duration_days %}<span class="dur-sep">&</span>{% endif %}
+                            {% if student.duration_days %}<span class="dur-part">{{ student.duration_days }} days</span>{% endif %}
+                            {% if not student.duration_hours and not student.duration_days %}<span class="text-muted">—</span>{% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if student.batch %}
+                        <a href="{% url 'batch-detail' student.batch.id %}" class="badge badge-batch" style="text-decoration:none;">{{ student.batch.name|truncatechars:28 }}</a>
+                        {% else %}
+                        <span class="text-muted" style="font-size:12px;">—</span>
+                        {% endif %}
+                    </td>
                     <td class="text-muted">{{ student.joined_date|date:"d M Y" }}</td>
                     <td class="col-actions">
                         <a href="{% url 'student-update' student.id %}" class="action-btn edit">Edit</a>
@@ -84,7 +109,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5"><div class="empty-state">No students yet — add one above.</div></td></tr>
+                <tr><td colspan="6"><div class="empty-state">No students yet — add one above or <a href="{% url 'batch-import' %}" class="text-accent">import a group</a>.</div></td></tr>
                 {% endfor %}
             </tbody>
         </table>
