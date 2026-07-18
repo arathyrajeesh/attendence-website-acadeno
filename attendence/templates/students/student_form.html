@@ -2,40 +2,66 @@
 {% block title %}{% if object %}Edit Student{% else %}Add Student{% endif %} — AMS{% endblock %}
 
 {% block content %}
-<div style="max-width:420px; margin:0 auto;">
+<div style="max-width:460px; margin:0 auto;">
     <div style="margin-bottom:16px;">
         <a href="{% url 'student-list' %}" class="text-muted" style="font-size:13px; text-decoration:none;">← Back to Students</a>
     </div>
     <div class="card">
         <div class="card-title">{% if object %}Edit student{% else %}Add student{% endif %}</div>
-        <form method="post" style="display:flex; flex-direction:column; gap:12px;">
+        <form method="post" style="display:flex; flex-direction:column; gap:14px;">
             {% csrf_token %}
+
             <div class="field-group">
                 <label class="field-label">Name</label>
                 {{ form.name }}
                 {% if form.name.errors %}<div class="field-error">{{ form.name.errors.0 }}</div>{% endif %}
             </div>
+
             <div class="field-group">
                 <label class="field-label">Course</label>
                 {{ form.course }}
                 {% if form.course.errors %}<div class="field-error">{{ form.course.errors.0 }}</div>{% endif %}
             </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+
+            <!-- Course Type Toggle -->
+            <div class="field-group">
+                <label class="field-label">Course Type</label>
+                <div class="type-toggle" id="edit-type-toggle">
+                    <button type="button" class="type-btn" data-type="short_term">⏱ Short Term</button>
+                    <button type="button" class="type-btn" data-type="long_term">📅 Long Term</button>
+                </div>
+                {{ form.course_type }}
+            </div>
+
+            <!-- Short Term: hours + days -->
+            <div id="edit-short-fields" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                 <div class="field-group">
-                    <label class="field-label">Duration — Hours</label>
+                    <label class="field-label">Hours</label>
                     {{ form.duration_hours }}
                     {% if form.duration_hours.errors %}<div class="field-error">{{ form.duration_hours.errors.0 }}</div>{% endif %}
                 </div>
                 <div class="field-group">
-                    <label class="field-label">Duration — Days</label>
+                    <label class="field-label">Days</label>
                     {{ form.duration_days }}
                     {% if form.duration_days.errors %}<div class="field-error">{{ form.duration_days.errors.0 }}</div>{% endif %}
                 </div>
             </div>
+
+            <!-- Long Term: months -->
+            <div id="edit-long-fields" style="display:none;">
+                <div class="field-group">
+                    <label class="field-label">Duration (Months)</label>
+                    {{ form.duration_months }}
+                    {% if form.duration_months.errors %}<div class="field-error">{{ form.duration_months.errors.0 }}</div>{% endif %}
+                    <span style="font-size:11px; color:var(--text-muted);">e.g. 6</span>
+                </div>
+            </div>
+
             <div class="field-group">
                 <label class="field-label">Batch / Group (optional)</label>
                 {{ form.batch }}
             </div>
+
             <div style="display:flex; gap:8px; margin-top:4px;">
                 <button type="submit" class="btn btn-primary">{% if object %}Save changes{% else %}+ Add student{% endif %}</button>
                 <a href="{% url 'student-list' %}" class="btn btn-ghost">Cancel</a>
@@ -43,4 +69,26 @@
         </form>
     </div>
 </div>
+
+<script>
+(function () {
+    const toggle     = document.getElementById('edit-type-toggle');
+    const btns       = toggle.querySelectorAll('.type-btn');
+    const typeInput  = document.getElementById('id_course_type');
+    const shortBlock = document.getElementById('edit-short-fields');
+    const longBlock  = document.getElementById('edit-long-fields');
+
+    function applyType(type) {
+        typeInput.value = type;
+        btns.forEach(b => b.classList.toggle('active', b.dataset.type === type));
+        shortBlock.style.display = (type === 'short_term') ? 'grid' : 'none';
+        longBlock.style.display  = (type === 'long_term')  ? 'block' : 'none';
+    }
+
+    // Initialise from saved value (edit mode) or default
+    applyType(typeInput.value || 'short_term');
+
+    btns.forEach(btn => btn.addEventListener('click', () => applyType(btn.dataset.type)));
+})();
+</script>
 {% endblock %}

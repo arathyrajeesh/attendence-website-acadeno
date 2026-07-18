@@ -5,7 +5,8 @@ from .models import Student, Attendance, Batch
 class StudentForm(forms.ModelForm):
     class Meta:
         model  = Student
-        fields = ['name', 'course', 'duration_hours', 'duration_days', 'batch']
+        fields = ['name', 'course', 'course_type',
+                  'duration_hours', 'duration_days', 'duration_months', 'batch']
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'field-input',
@@ -15,6 +16,10 @@ class StudentForm(forms.ModelForm):
                 'class': 'field-input',
                 'placeholder': 'e.g. Web development',
             }),
+            'course_type': forms.Select(attrs={
+                'class': 'field-select course-type-select',
+                'id': 'id_course_type',
+            }),
             'duration_hours': forms.NumberInput(attrs={
                 'class': 'field-input',
                 'placeholder': '100',
@@ -25,11 +30,18 @@ class StudentForm(forms.ModelForm):
                 'placeholder': '15',
                 'min': 0,
             }),
+            'duration_months': forms.NumberInput(attrs={
+                'class': 'field-input',
+                'placeholder': '6',
+                'min': 0,
+            }),
             'batch': forms.Select(attrs={'class': 'field-select'}),
         }
         labels = {
-            'duration_hours': 'Duration (hours)',
-            'duration_days':  'Duration (days)',
+            'course_type':    'Course Type',
+            'duration_hours': 'Hours',
+            'duration_days':  'Days',
+            'duration_months': 'Months',
             'batch':          'Batch / Group (optional)',
         }
 
@@ -37,11 +49,34 @@ class StudentForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['batch'].required = False
         self.fields['batch'].empty_label = '— No batch —'
+        self.fields['duration_hours'].required  = False
+        self.fields['duration_days'].required   = False
+        self.fields['duration_months'].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        ctype = cleaned.get('course_type', 'short_term')
+        if ctype == 'short_term':
+            cleaned['duration_months'] = 0
+            hours = cleaned.get('duration_hours', 0) or 0
+            days  = cleaned.get('duration_days',  0) or 0
+            if not hours and not days:
+                raise forms.ValidationError(
+                    "Short Term: please enter at least hours or days for the duration."
+                )
+        else:
+            cleaned['duration_hours'] = 0
+            cleaned['duration_days']  = 0
+            months = cleaned.get('duration_months', 0) or 0
+            if not months:
+                raise forms.ValidationError(
+                    "Long Term: please enter the number of months for the duration."
+                )
+        return cleaned
 
 
 class BatchForm(forms.ModelForm):
     """Form to create a batch/group of students."""
-    # Textarea for pasting student names — one per line
     student_names = forms.CharField(
         widget=forms.Textarea(attrs={
             'class': 'field-input',
@@ -50,12 +85,13 @@ class BatchForm(forms.ModelForm):
             'style': 'resize: vertical; font-family: monospace; font-size: 13px;',
         }),
         label='Student Names',
-        help_text='One name per line. Students will all share the course and duration below.',
+        help_text='One name per line. All students will share the course, type, and duration.',
     )
 
     class Meta:
         model  = Batch
-        fields = ['name', 'course', 'duration_hours', 'duration_days']
+        fields = ['name', 'course', 'course_type',
+                  'duration_hours', 'duration_days', 'duration_months']
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'field-input',
@@ -65,6 +101,10 @@ class BatchForm(forms.ModelForm):
                 'class': 'field-input',
                 'placeholder': 'e.g. Full-Stack Web Development',
             }),
+            'course_type': forms.Select(attrs={
+                'class': 'field-select course-type-select',
+                'id': 'id_batch_course_type',
+            }),
             'duration_hours': forms.NumberInput(attrs={
                 'class': 'field-input',
                 'placeholder': '100',
@@ -75,24 +115,51 @@ class BatchForm(forms.ModelForm):
                 'placeholder': '15',
                 'min': 0,
             }),
+            'duration_months': forms.NumberInput(attrs={
+                'class': 'field-input',
+                'placeholder': '6',
+                'min': 0,
+            }),
         }
         labels = {
-            'name':           'Batch / College Name',
-            'duration_hours': 'Total Hours',
-            'duration_days':  'Total Days',
+            'name':            'Batch / College Name',
+            'course_type':     'Course Type',
+            'duration_hours':  'Hours',
+            'duration_days':   'Days',
+            'duration_months': 'Months',
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['duration_hours'].required  = False
+        self.fields['duration_days'].required   = False
+        self.fields['duration_months'].required = False
 
     def clean(self):
         cleaned = super().clean()
-        raw = cleaned.get('student_names', '')
+        raw   = cleaned.get('student_names', '')
         names = [n.strip() for n in raw.splitlines() if n.strip()]
         if not names:
             raise forms.ValidationError("Please enter at least one student name.")
         cleaned['parsed_names'] = names
-        hours = cleaned.get('duration_hours', 0)
-        days  = cleaned.get('duration_days', 0)
-        if not hours and not days:
-            raise forms.ValidationError("Please specify at least hours or days for the duration.")
+
+        ctype = cleaned.get('course_type', 'short_term')
+        if ctype == 'short_term':
+            cleaned['duration_months'] = 0
+            hours = cleaned.get('duration_hours', 0) or 0
+            days  = cleaned.get('duration_days',  0) or 0
+            if not hours and not days:
+                raise forms.ValidationError(
+                    "Short Term: please enter at least hours or days."
+                )
+        else:
+            cleaned['duration_hours'] = 0
+            cleaned['duration_days']  = 0
+            months = cleaned.get('duration_months', 0) or 0
+            if not months:
+                raise forms.ValidationError(
+                    "Long Term: please enter the number of months."
+                )
         return cleaned
 
 

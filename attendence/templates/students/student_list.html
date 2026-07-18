@@ -5,7 +5,7 @@
 <!-- Add Student Form -->
 <div class="card">
     <div class="card-title">Add student</div>
-    <form method="post" style="display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; max-width:480px;">
+    <form method="post" style="display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; max-width:520px;" id="add-student-form">
         {% csrf_token %}
         <div class="field-group" style="grid-column:1/-1;">
             <label class="field-label">Name</label>
@@ -17,16 +17,43 @@
             {{ form.course }}
             {% if form.course.errors %}<div class="field-error">{{ form.course.errors.0 }}</div>{% endif %}
         </div>
-        <div class="field-group">
-            <label class="field-label">Duration — Hours</label>
-            {{ form.duration_hours }}
-            {% if form.duration_hours.errors %}<div class="field-error">{{ form.duration_hours.errors.0 }}</div>{% endif %}
+
+        <!-- Course Type Toggle -->
+        <div class="field-group" style="grid-column:1/-1;">
+            <label class="field-label">Course Type</label>
+            <div class="type-toggle" id="add-type-toggle">
+                <button type="button" class="type-btn active" data-type="short_term">⏱ Short Term</button>
+                <button type="button" class="type-btn" data-type="long_term">📅 Long Term</button>
+            </div>
+            {{ form.course_type }}
         </div>
-        <div class="field-group">
-            <label class="field-label">Duration — Days</label>
-            {{ form.duration_days }}
-            {% if form.duration_days.errors %}<div class="field-error">{{ form.duration_days.errors.0 }}</div>{% endif %}
+
+        <!-- Short Term fields (hours + days) -->
+        <div id="add-short-fields" style="display:contents;">
+            <div class="field-group">
+                <label class="field-label">Hours</label>
+                {{ form.duration_hours }}
+                {% if form.duration_hours.errors %}<div class="field-error">{{ form.duration_hours.errors.0 }}</div>{% endif %}
+                <span style="font-size:11px; color:var(--text-muted);">e.g. 100</span>
+            </div>
+            <div class="field-group">
+                <label class="field-label">Days</label>
+                {{ form.duration_days }}
+                {% if form.duration_days.errors %}<div class="field-error">{{ form.duration_days.errors.0 }}</div>{% endif %}
+                <span style="font-size:11px; color:var(--text-muted);">e.g. 15</span>
+            </div>
         </div>
+
+        <!-- Long Term field (months) -->
+        <div id="add-long-fields" style="display:none; grid-column:1/-1;">
+            <div class="field-group">
+                <label class="field-label">Duration (Months)</label>
+                {{ form.duration_months }}
+                {% if form.duration_months.errors %}<div class="field-error">{{ form.duration_months.errors.0 }}</div>{% endif %}
+                <span style="font-size:11px; color:var(--text-muted);">e.g. 6</span>
+            </div>
+        </div>
+
         <div class="field-group" style="grid-column:1/-1;">
             <label class="field-label">Batch / Group (optional)</label>
             {{ form.batch }}
@@ -74,6 +101,7 @@
                 <tr>
                     <th>Name</th>
                     <th>Course</th>
+                    <th>Type</th>
                     <th>Duration</th>
                     <th>Batch</th>
                     <th>Joined</th>
@@ -86,11 +114,15 @@
                     <td><a href="{% url 'student-attendance' student.id %}" class="text-accent fw-500" style="text-decoration:none;">{{ student.name }}</a></td>
                     <td>{{ student.course }}</td>
                     <td>
+                        {% if student.course_type == 'short_term' %}
+                        <span class="badge" style="background:rgba(99,179,237,0.15); color:#63b3ed; font-size:10px; padding:2px 8px; border-radius:20px; font-weight:600;">Short Term</span>
+                        {% else %}
+                        <span class="badge" style="background:rgba(154,230,180,0.15); color:#68d391; font-size:10px; padding:2px 8px; border-radius:20px; font-weight:600;">Long Term</span>
+                        {% endif %}
+                    </td>
+                    <td>
                         <div class="duration-pill">
-                            {% if student.duration_hours %}<span class="dur-part">{{ student.duration_hours }} hrs</span>{% endif %}
-                            {% if student.duration_hours and student.duration_days %}<span class="dur-sep">&</span>{% endif %}
-                            {% if student.duration_days %}<span class="dur-part">{{ student.duration_days }} days</span>{% endif %}
-                            {% if not student.duration_hours and not student.duration_days %}<span class="text-muted">—</span>{% endif %}
+                            <span class="dur-part">{{ student.duration_display }}</span>
                         </div>
                     </td>
                     <td>
@@ -109,7 +141,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6"><div class="empty-state">No students yet — add one above or <a href="{% url 'batch-import' %}" class="text-accent">import a group</a>.</div></td></tr>
+                <tr><td colspan="7"><div class="empty-state">No students yet — add one above or <a href="{% url 'batch-import' %}" class="text-accent">import a group</a>.</div></td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -117,6 +149,34 @@
 </div>
 
 <script>
+    // ── Course Type Toggle (Add Student form) ──────────────────────────────
+    (function () {
+        const toggle     = document.getElementById('add-type-toggle');
+        const btns       = toggle.querySelectorAll('.type-btn');
+        const typeInput  = document.getElementById('id_course_type');   // hidden select
+        const shortBlock = document.getElementById('add-short-fields');
+        const longBlock  = document.getElementById('add-long-fields');
+
+        function applyType(type) {
+            typeInput.value = type;
+            btns.forEach(b => b.classList.toggle('active', b.dataset.type === type));
+            if (type === 'short_term') {
+                shortBlock.style.display = 'contents';
+                longBlock.style.display  = 'none';
+            } else {
+                shortBlock.style.display = 'none';
+                longBlock.style.display  = 'grid';
+                longBlock.style.gridColumn = '1/-1';
+            }
+        }
+
+        // initialise from form value (useful after validation failure)
+        applyType(typeInput.value || 'short_term');
+
+        btns.forEach(btn => btn.addEventListener('click', () => applyType(btn.dataset.type)));
+    })();
+
+    // ── Export Links ───────────────────────────────────────────────────────
     function updateExportLinks() {
         const month = document.getElementById('export-month').value;
         const year  = document.getElementById('export-year').value;

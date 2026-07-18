@@ -129,8 +129,10 @@ class BatchImportView(FormMixin, ListView):
                     Student(
                         name=n,
                         course=batch.course,
+                        course_type=batch.course_type,
                         duration_hours=batch.duration_hours,
                         duration_days=batch.duration_days,
+                        duration_months=batch.duration_months,
                         batch=batch,
                     )
                     for n in names
@@ -139,7 +141,7 @@ class BatchImportView(FormMixin, ListView):
             messages.success(
                 request,
                 f"✅ Batch '{batch.name}' created with {len(names)} students "
-                f"({batch.duration_hours} hrs, {batch.duration_days} days)."
+                f"— {batch.get_course_type_display()} · {batch.duration_display}."
             )
             return redirect(self.success_url)
         return self.render_to_response(self.get_context_data(form=form))

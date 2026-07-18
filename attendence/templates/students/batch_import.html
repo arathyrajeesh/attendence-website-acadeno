@@ -7,31 +7,41 @@
 <div class="card">
     <div class="card-title">🏫 Add Group / Batch</div>
     <p style="color:var(--text-muted); font-size:13px; margin-bottom:18px; margin-top:-8px;">
-        Add an entire college or institution batch at once. Set the shared course and duration, then paste all student names.
+        Add an entire college or institution batch at once. Set the shared course, course type and duration, then paste all student names.
     </p>
-    <form method="post">
+    <form method="post" id="batch-form">
         {% csrf_token %}
 
         {% if form.non_field_errors %}
         <div class="msg error" style="margin-bottom:14px;">{{ form.non_field_errors.0 }}</div>
         {% endif %}
 
-        <!-- Row 1: Batch name full width -->
+        <!-- Batch name -->
         <div class="field-group" style="margin-bottom:12px;">
             <label class="field-label">Batch / College Name</label>
             {{ form.name }}
             {% if form.name.errors %}<div class="field-error">{{ form.name.errors.0 }}</div>{% endif %}
         </div>
 
-        <!-- Row 2: Course -->
+        <!-- Course -->
         <div class="field-group" style="margin-bottom:12px;">
             <label class="field-label">Course</label>
             {{ form.course }}
             {% if form.course.errors %}<div class="field-error">{{ form.course.errors.0 }}</div>{% endif %}
         </div>
 
-        <!-- Row 3: Duration -->
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+        <!-- Course Type Toggle -->
+        <div class="field-group" style="margin-bottom:14px;">
+            <label class="field-label">Course Type</label>
+            <div class="type-toggle" id="batch-type-toggle">
+                <button type="button" class="type-btn active" data-type="short_term">⏱ Short Term</button>
+                <button type="button" class="type-btn" data-type="long_term">📅 Long Term</button>
+            </div>
+            {{ form.course_type }}
+        </div>
+
+        <!-- Short Term: hours + days -->
+        <div id="batch-short-fields" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
             <div class="field-group">
                 <label class="field-label">Total Hours</label>
                 {{ form.duration_hours }}
@@ -46,12 +56,22 @@
             </div>
         </div>
 
-        <!-- Duration preview -->
+        <!-- Long Term: months -->
+        <div id="batch-long-fields" style="display:none; margin-bottom:12px;">
+            <div class="field-group">
+                <label class="field-label">Duration (Months)</label>
+                {{ form.duration_months }}
+                {% if form.duration_months.errors %}<div class="field-error">{{ form.duration_months.errors.0 }}</div>{% endif %}
+                <span style="font-size:11px; color:var(--text-muted); margin-top:3px; display:block;">e.g. 6</span>
+            </div>
+        </div>
+
+        <!-- Live duration preview -->
         <div id="dur-preview" style="display:none; margin-bottom:16px; padding:8px 12px; background:rgba(167,139,250,0.06); border:1px solid rgba(167,139,250,0.2); border-radius:7px; font-size:12px; color:#a78bfa;">
             📅 Duration: <strong id="dur-text">—</strong>
         </div>
 
-        <!-- Row 4: Student names textarea -->
+        <!-- Student names textarea -->
         <div class="field-group" style="margin-bottom:16px;">
             <label class="field-label">Student Names (one per line)</label>
             {{ form.student_names }}
@@ -78,6 +98,7 @@
                 <tr>
                     <th>Batch / College</th>
                     <th>Course</th>
+                    <th>Type</th>
                     <th>Duration</th>
                     <th>Students</th>
                     <th>Created</th>
@@ -94,10 +115,15 @@
                     </td>
                     <td>{{ batch.course }}</td>
                     <td>
+                        {% if batch.course_type == 'short_term' %}
+                        <span class="badge" style="background:rgba(99,179,237,0.15); color:#63b3ed; font-size:10px; padding:2px 8px; border-radius:20px; font-weight:600;">Short Term</span>
+                        {% else %}
+                        <span class="badge" style="background:rgba(154,230,180,0.15); color:#68d391; font-size:10px; padding:2px 8px; border-radius:20px; font-weight:600;">Long Term</span>
+                        {% endif %}
+                    </td>
+                    <td>
                         <div class="duration-pill">
-                            {% if batch.duration_hours %}<span class="dur-part">{{ batch.duration_hours }} hrs</span>{% endif %}
-                            {% if batch.duration_hours and batch.duration_days %}<span class="dur-sep">&</span>{% endif %}
-                            {% if batch.duration_days %}<span class="dur-part">{{ batch.duration_days }} days</span>{% endif %}
+                            <span class="dur-part">{{ batch.duration_display }}</span>
                         </div>
                     </td>
                     <td>
@@ -110,7 +136,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6"><div class="empty-state">No batches yet — create one above.</div></td></tr>
+                <tr><td colspan="7"><div class="empty-state">No batches yet — create one above.</div></td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -118,7 +144,59 @@
 </div>
 
 <script>
-    // Live student count
+    // ── Course Type Toggle ────────────────────────────────────────────────
+    (function () {
+        const toggle      = document.getElementById('batch-type-toggle');
+        const btns        = toggle.querySelectorAll('.type-btn');
+        const typeInput   = document.getElementById('id_course_type');
+        const shortFields = document.getElementById('batch-short-fields');
+        const longFields  = document.getElementById('batch-long-fields');
+        const preview     = document.getElementById('dur-preview');
+        const durText     = document.getElementById('dur-text');
+
+        function applyType(type) {
+            typeInput.value = type;
+            btns.forEach(b => b.classList.toggle('active', b.dataset.type === type));
+            shortFields.style.display = (type === 'short_term') ? 'grid' : 'none';
+            longFields.style.display  = (type === 'long_term')  ? 'block' : 'none';
+            updatePreview();
+        }
+
+        // Live duration preview
+        function updatePreview() {
+            const type = typeInput.value;
+            if (type === 'short_term') {
+                const h = parseInt(document.getElementById('id_duration_hours').value) || 0;
+                const d = parseInt(document.getElementById('id_duration_days').value)  || 0;
+                if (h || d) {
+                    let parts = [];
+                    if (h) parts.push(h + ' hour' + (h !== 1 ? 's' : ''));
+                    if (d) parts.push(d + ' day'  + (d !== 1 ? 's' : ''));
+                    durText.textContent = parts.join(' and ');
+                    preview.style.display = 'block';
+                } else {
+                    preview.style.display = 'none';
+                }
+            } else {
+                const m = parseInt(document.getElementById('id_duration_months').value) || 0;
+                if (m) {
+                    durText.textContent = m + ' month' + (m !== 1 ? 's' : '');
+                    preview.style.display = 'block';
+                } else {
+                    preview.style.display = 'none';
+                }
+            }
+        }
+
+        applyType(typeInput.value || 'short_term');
+        btns.forEach(btn => btn.addEventListener('click', () => applyType(btn.dataset.type)));
+        ['id_duration_hours', 'id_duration_days', 'id_duration_months'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', updatePreview);
+        });
+    })();
+
+    // ── Live student count ─────────────────────────────────────────────────
     const textarea = document.getElementById('id_student_names');
     const countEl  = document.getElementById('name-count');
     function updateCount() {
@@ -126,27 +204,5 @@
         countEl.textContent = names.length + ' student' + (names.length !== 1 ? 's' : '');
     }
     textarea.addEventListener('input', updateCount);
-
-    // Live duration preview
-    const hoursEl = document.getElementById('id_duration_hours');
-    const daysEl  = document.getElementById('id_duration_days');
-    const preview = document.getElementById('dur-preview');
-    const durText = document.getElementById('dur-text');
-
-    function updatePreview() {
-        const h = parseInt(hoursEl.value) || 0;
-        const d = parseInt(daysEl.value)  || 0;
-        if (h || d) {
-            let parts = [];
-            if (h) parts.push(h + ' hour' + (h !== 1 ? 's' : ''));
-            if (d) parts.push(d + ' day'  + (d !== 1 ? 's' : ''));
-            durText.textContent = parts.join(' and ');
-            preview.style.display = 'block';
-        } else {
-            preview.style.display = 'none';
-        }
-    }
-    hoursEl.addEventListener('input', updatePreview);
-    daysEl.addEventListener('input',  updatePreview);
 </script>
 {% endblock %}
