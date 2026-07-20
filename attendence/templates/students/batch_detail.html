@@ -14,13 +14,36 @@
                     {% if batch.duration_hours %}<span class="dur-part">{{ batch.duration_hours }} hrs</span>{% endif %}
                     {% if batch.duration_hours and batch.duration_days %}<span class="dur-sep">&</span>{% endif %}
                     {% if batch.duration_days %}<span class="dur-part">{{ batch.duration_days }} days</span>{% endif %}
+                    {% if batch.duration_months %}<span class="dur-part">{{ batch.duration_months }} months</span>{% endif %}
                 </div>
                 <span class="badge badge-batch">{{ students|length }} students</span>
                 <span class="text-muted" style="font-size:12px;">Created {{ batch.created_at|date:"d M Y" }}</span>
             </div>
         </div>
-        <div style="display:flex; gap:8px;">
+
+        <!-- Header action buttons -->
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
             <a href="{% url 'batch-import' %}" class="btn btn-ghost">← Batches</a>
+
+            <!-- Whole-batch download dropdown -->
+            <div class="download-dropdown" style="position:relative;">
+                <button class="btn btn-accent" onclick="toggleDropdown('batchDropdown')"
+                        style="display:flex; align-items:center; gap:6px;">
+                    ⬇ Download Batch
+                    <span style="font-size:10px;">▾</span>
+                </button>
+                <div id="batchDropdown" class="dropdown-menu" style="display:none; position:absolute; top:110%; right:0; background:var(--card-bg,#1e1e24); border:1px solid var(--border,#2e2e38); border-radius:10px; min-width:190px; box-shadow:0 8px 32px rgba(0,0,0,.35); z-index:100; overflow:hidden;">
+                    <a href="{% url 'batch-export-pdf' batch.id %}"
+                       class="dropdown-item" style="display:flex; align-items:center; gap:10px; padding:12px 16px; color:inherit; text-decoration:none; font-size:13px; border-bottom:1px solid var(--border,#2e2e38); transition:background .15s;">
+                        📄 Download PDF
+                    </a>
+                    <a href="{% url 'batch-export-excel' batch.id %}"
+                       class="dropdown-item" style="display:flex; align-items:center; gap:10px; padding:12px 16px; color:inherit; text-decoration:none; font-size:13px; transition:background .15s;">
+                        📊 Download Excel
+                    </a>
+                </div>
+            </div>
+
             <a href="{% url 'batch-delete' batch.id %}" class="btn btn-danger-outline">Delete Batch</a>
         </div>
     </div>
@@ -59,12 +82,34 @@
                             {% if student.duration_hours %}<span class="dur-part">{{ student.duration_hours }} hrs</span>{% endif %}
                             {% if student.duration_hours and student.duration_days %}<span class="dur-sep">&</span>{% endif %}
                             {% if student.duration_days %}<span class="dur-part">{{ student.duration_days }} days</span>{% endif %}
+                            {% if student.duration_months %}<span class="dur-part">{{ student.duration_months }} months</span>{% endif %}
                         </div>
                     </td>
                     <td class="text-muted">{{ student.joined_date|date:"d M Y" }}</td>
-                    <td class="col-actions">
+                    <td class="col-actions" style="white-space:nowrap;">
                         <a href="{% url 'student-attendance' student.id %}" class="action-btn edit">Attendance</a>
                         <a href="{% url 'student-update' student.id %}" class="action-btn edit">Edit</a>
+
+                        <!-- Individual student download dropdown -->
+                        <div class="download-dropdown" style="position:relative; display:inline-block;">
+                            <button class="action-btn edit"
+                                    onclick="toggleDropdown('stu{{ student.id }}')"
+                                    style="cursor:pointer; background:none; border:none; padding:0;">
+                                ⬇ Download
+                            </button>
+                            <div id="stu{{ student.id }}" class="dropdown-menu"
+                                 style="display:none; position:absolute; top:110%; right:0; background:var(--card-bg,#1e1e24); border:1px solid var(--border,#2e2e38); border-radius:10px; min-width:170px; box-shadow:0 8px 32px rgba(0,0,0,.35); z-index:200; overflow:hidden;">
+                                <a href="{% url 'student-export-pdf' student.id %}"
+                                   class="dropdown-item" style="display:flex; align-items:center; gap:8px; padding:11px 14px; color:inherit; text-decoration:none; font-size:12px; border-bottom:1px solid var(--border,#2e2e38); transition:background .15s;">
+                                    📄 PDF Report
+                                </a>
+                                <a href="{% url 'student-export-excel' student.id %}"
+                                   class="dropdown-item" style="display:flex; align-items:center; gap:8px; padding:11px 14px; color:inherit; text-decoration:none; font-size:12px; transition:background .15s;">
+                                    📊 Excel Report
+                                </a>
+                            </div>
+                        </div>
+
                         <a href="{% url 'student-delete' student.id %}" class="action-btn delete">Delete</a>
                     </td>
                 </tr>
@@ -75,4 +120,32 @@
         </table>
     </div>
 </div>
+
+<style>
+.dropdown-item:hover {
+    background: rgba(91,156,246,0.12) !important;
+    color: #5b9cf6 !important;
+}
+</style>
+
+<script>
+function toggleDropdown(id) {
+    // Close all other open dropdowns first
+    document.querySelectorAll('.dropdown-menu').forEach(function(el) {
+        if (el.id !== id) el.style.display = 'none';
+    });
+    var menu = document.getElementById(id);
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.download-dropdown')) {
+        document.querySelectorAll('.dropdown-menu').forEach(function(el) {
+            el.style.display = 'none';
+        });
+    }
+});
+</script>
+
 {% endblock %}

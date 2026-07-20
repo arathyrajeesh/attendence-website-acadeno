@@ -14,6 +14,8 @@ urlpatterns = [
     path('batches/', views.BatchImportView.as_view(), name='batch-import'),
     path('batches/<int:pk>/', views.BatchDetailView.as_view(), name='batch-detail'),
     path('batches/<int:pk>/delete/', views.BatchDeleteView.as_view(), name='batch-delete'),
+    path('batches/<int:pk>/export/pdf/', views.export_batch_pdf, name='batch-export-pdf'),
+    path('batches/<int:pk>/export/excel/', views.export_batch_excel, name='batch-export-excel'),
 
     # Attendance URLs
     path('attendance/', views.AttendanceListView.as_view(), name='attendance-list'),
