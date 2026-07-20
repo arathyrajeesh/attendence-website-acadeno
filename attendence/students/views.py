@@ -459,9 +459,8 @@ def export_student_excel(request, pk):
 
 def export_batch_excel(request, pk):
     """
-    Horizontal-layout Excel export matching the Students' Attendance Report format:
-    Dates as columns, students as rows, TIME + Attendance sub-columns per date.
-    Splits into multiple sheets (7 dates each). Last sheet includes Notes/Verification footer.
+    Horizontal-layout Excel export matching the Students' Attendance Report format.
+    SAFE version: sets cell values BEFORE merge_cells to avoid MergedCell read-only error.
     """
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -484,8 +483,6 @@ def export_batch_excel(request, pk):
         period_label = "All Records"
 
     all_dates = sorted(set(r.date for r in records_qs))
-
-    # Build lookup: student_id -> {date -> record}
     lookup = {}
     for r in records_qs:
         lookup.setdefault(r.student_id, {})[r.date] = r
@@ -494,202 +491,157 @@ def export_batch_excel(request, pk):
     end_date   = all_dates[-1] if all_dates else None
 
     DATES_PER_SHEET = 7
-    chunks = [all_dates[i:i+DATES_PER_SHEET] for i in range(0, max(len(all_dates), 1), DATES_PER_SHEET)]
+    chunks = [all_dates[i:i + DATES_PER_SHEET]
+              for i in range(0, max(len(all_dates), 1), DATES_PER_SHEET)]
     if not all_dates:
         chunks = [[]]
 
-    # ── Style helpers ────────────────────────────────────────────────────────────
-    def thin_border(sides='all'):
-        s = Side(style='thin', color='AAAAAA')
-        n = Side(style=None)
-        if sides == 'all':
-            return Border(left=s, right=s, top=s, bottom=s)
-        return Border(left=s if 'l' in sides else n,
-                      right=s if 'r' in sides else n,
-                      top=s if 't' in sides else n,
-                      bottom=s if 'b' in sides else n)
+    # ── Style helpers ─────────────────────────────────────────────────────────
+    TB = Border(
+        left=Side(style='thin', color='AAAAAA'),  right=Side(style='thin', color='AAAAAA'),
+        top=Side(style='thin', color='AAAAAA'),   bottom=Side(style='thin', color='AAAAAA'),
+    )
+    C = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    L = Alignment(horizontal='left',   vertical='center', wrap_text=True)
 
-    C  = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    L  = Alignment(horizontal='left',   vertical='center', wrap_text=True)
+    HDR_FILL  = PatternFill('solid', fgColor='D9E1F2')
+    SUB_FILL  = PatternFill('solid', fgColor='BDD7EE')
+    DATE_FILL = PatternFill('solid', fgColor='DEEAF1')
+    PRES_FILL = PatternFill('solid', fgColor='C6EFCE')
+    ABS_FILL  = PatternFill('solid', fgColor='FFB3B3')
+    NC_FILL   = PatternFill('solid', fgColor='FFF2CC')
 
-    HDR_FILL  = PatternFill('solid', fgColor='D9E1F2')   # blue-grey header
-    SUB_FILL  = PatternFill('solid', fgColor='BDD7EE')   # lighter sub-header
-    DATE_FILL = PatternFill('solid', fgColor='DEEAF1')   # date row
-    PRES_FILL = PatternFill('solid', fgColor='C6EFCE')   # present – green
-    ABS_FILL  = PatternFill('solid', fgColor='FFB3B3')   # absent  – red
-    NC_FILL   = PatternFill('solid', fgColor='FFF2CC')   # no-class – yellow
+    def sc(ws, row, col, value='', bold=False, size=9, color='000000',
+           align=None, fill=None, border=None):
+        """Set cell value+style BEFORE any merge."""
+        cell = ws.cell(row=row, column=col, value=value)
+        cell.font      = Font(bold=bold, size=size, color=color, name='Calibri')
+        cell.alignment = align  or C
+        if fill:   cell.fill   = fill
+        if border: cell.border = border
+        return cell
 
-    tb = thin_border()
+    def merge(ws, r1, c1, r2, c2):
+        if (r1, c1) != (r2, c2):
+            ws.merge_cells(start_row=r1, start_column=c1, end_row=r2, end_column=c2)
 
     wb = openpyxl.Workbook()
 
     for sh_idx, dates in enumerate(chunks):
         ws = wb.active if sh_idx == 0 else wb.create_sheet()
-        ws.title = f"Sheet {sh_idx+1}"
+        ws.title = f"Sheet {sh_idx + 1}"
 
-        n_date_cols = len(dates)
-        total_cols  = 1 + n_date_cols * 2     # NAME + (TIME+Att) * n_dates
-        last_col_letter = get_column_letter(total_cols)
+        n_dates    = len(dates)
+        total_cols = 1 + n_dates * 2
 
-        def mc(r1, c1, r2, c2):
-            if (r1, c1) != (r2, c2):
-                ws.merge_cells(start_row=r1, start_column=c1,
-                               end_row=r2,   end_column=c2)
-            return ws.cell(r1, c1)
+        # ── ROW 1: Title ──────────────────────────────────────────────────────
+        sc(ws, 1, 1, "STUDENTS' ATTENDANCE REPORT",
+           bold=True, size=14, align=C, fill=HDR_FILL, border=TB)
+        merge(ws, 1, 1, 1, total_cols)
+        ws.row_dimensions[1].height = 30
 
-        # ── ROW 1 : Title ───────────────────────────────────────────────────────
-        c = mc(1, 1, 1, total_cols)
-        c.value     = "STUDENTS' ATTENDANCE REPORT"
-        c.font      = Font(bold=True, size=16, name='Calibri')
-        c.alignment = C
-        c.fill      = HDR_FILL
-        ws.row_dimensions[1].height = 32
+        # ── ROW 2: College / Internship / Duration ────────────────────────────
+        sc(ws, 2, 1, "COLLEGE NAME :", bold=True, size=9, align=L, fill=HDR_FILL, border=TB)
+        merge(ws, 2, 1, 2, 4)
 
-        # ── ROWS 2-3 : Header info ───────────────────────────────────────────────
-        info_mid  = max(5, total_cols // 2 - 1)
-        info_end  = total_cols
+        if total_cols >= 9:
+            sc(ws, 2, 5, "INTERNSHIP :", bold=True, size=9, align=L, fill=HDR_FILL, border=TB)
+            merge(ws, 2, 5, 2, 8)
+            dur_col = 9
+        else:
+            dur_col = 5  # right after college block
 
-        # College name
-        mc(2, 1, 2, 4).value = "COLLEGE NAME :"
-        ws.cell(2, 1).font = Font(bold=True, size=9, name='Calibri')
-        ws.cell(2, 1).alignment = L
-
-        mc(3, 1, 3, 4).value = batch.name
-        ws.cell(3, 1).font      = Font(size=9, name='Calibri')
-        ws.cell(3, 1).alignment = L
-
-        # Internship / course
-        if total_cols >= 8:
-            mc(2, 5, 2, 8).value = "INTERNSHIP :"
-            ws.cell(2, 5).font = Font(bold=True, size=9, name='Calibri')
-            ws.cell(2, 5).alignment = L
-
-            mc(3, 5, 3, 8).value = batch.course
-            ws.cell(3, 5).font      = Font(size=9, name='Calibri')
-            ws.cell(3, 5).alignment = L
-
-        # Duration / dates (right side)
-        dur_col = min(9, total_cols)
+        dur_text = f"DURATION: {batch.duration_display}"
+        sc(ws, 2, dur_col, dur_text, bold=True, size=9, align=L, fill=HDR_FILL, border=TB)
         if dur_col <= total_cols:
-            mc(2, dur_col, 2, total_cols).value = f"DURATION: {batch.duration_display}"
-            ws.cell(2, dur_col).font = Font(bold=True, size=9, name='Calibri')
-            ws.cell(2, dur_col).alignment = L
-
-            if start_date and end_date:
-                date_range = (
-                    f"START DATE: {start_date.strftime('%d %b %Y').upper()}     "
-                    f"END DATE: {end_date.strftime('%d %b %Y').upper()}"
-                )
-            else:
-                date_range = ""
-            mc(3, dur_col, 3, total_cols).value = date_range
-            ws.cell(3, dur_col).font      = Font(size=9, name='Calibri')
-            ws.cell(3, dur_col).alignment = L
-
+            merge(ws, 2, dur_col, 2, total_cols)
         ws.row_dimensions[2].height = 18
+
+        # ── ROW 3: Values ─────────────────────────────────────────────────────
+        sc(ws, 3, 1, batch.name, size=9, align=L, fill=HDR_FILL, border=TB)
+        merge(ws, 3, 1, 3, 4)
+
+        if total_cols >= 9:
+            sc(ws, 3, 5, batch.course, size=9, align=L, fill=HDR_FILL, border=TB)
+            merge(ws, 3, 5, 3, 8)
+
+        if start_date and end_date:
+            date_range = (
+                f"START DATE: {start_date.strftime('%d %b %Y').upper()}     "
+                f"END DATE: {end_date.strftime('%d %b %Y').upper()}"
+            )
+        else:
+            date_range = ""
+        sc(ws, 3, dur_col, date_range, size=9, align=L, fill=HDR_FILL, border=TB)
+        if dur_col <= total_cols:
+            merge(ws, 3, dur_col, 3, total_cols)
         ws.row_dimensions[3].height = 18
 
-        # Outer border for header block
-        for r in range(1, 4):
-            for c_idx in range(1, total_cols + 1):
-                cell = ws.cell(r, c_idx)
-                cell.border = tb
-
-        # ── ROW 4 : Date headers (merged pairs) ─────────────────────────────────
-        c = ws.cell(4, 1, "")
-        c.border = tb
-        c.fill   = DATE_FILL
-
+        # ── ROW 4: Date headers ───────────────────────────────────────────────
+        sc(ws, 4, 1, '', bold=True, size=9, fill=DATE_FILL, border=TB)
         for i, d in enumerate(dates):
             col = 2 + i * 2
-            # Merge TIME + Attendance columns for the date label
-            mc(4, col, 4, col + 1).value = d.strftime('%d/%m/%Y')
-            ws.cell(4, col).font      = Font(bold=True, size=9, name='Calibri')
-            ws.cell(4, col).alignment = C
-            ws.cell(4, col).fill      = DATE_FILL
-            ws.cell(4, col).border    = tb
-            ws.cell(4, col + 1).border = tb
-            ws.cell(4, col + 1).fill   = DATE_FILL
-
+            sc(ws, 4, col,   d.strftime('%d/%m/%Y'), bold=True, size=9,
+               align=C, fill=DATE_FILL, border=TB)
+            sc(ws, 4, col+1, '',                     bold=True, size=9,
+               align=C, fill=DATE_FILL, border=TB)
+            merge(ws, 4, col, 4, col + 1)
         ws.row_dimensions[4].height = 20
 
-        # ── ROW 5 : Sub-headers NAME | TIME | Attendance … ──────────────────────
-        for col in range(1, total_cols + 1):
-            cell = ws.cell(5, col)
-            cell.fill   = SUB_FILL
-            cell.border = tb
-            cell.font   = Font(bold=True, size=8, name='Calibri')
-            cell.alignment = C
-
-        ws.cell(5, 1).value = "NAME"
-        for i in range(n_date_cols):
-            ws.cell(5, 2 + i * 2).value     = "TIME"
-            ws.cell(5, 3 + i * 2).value = "Attendance"
-
+        # ── ROW 5: Sub-headers ────────────────────────────────────────────────
+        sc(ws, 5, 1, 'NAME', bold=True, size=8, fill=SUB_FILL, border=TB)
+        for i in range(n_dates):
+            sc(ws, 5, 2 + i*2,   'TIME',       bold=True, size=8, fill=SUB_FILL, border=TB)
+            sc(ws, 5, 3 + i*2,   'Attendance', bold=True, size=8, fill=SUB_FILL, border=TB)
         ws.row_dimensions[5].height = 18
 
-        # ── DATA ROWS ────────────────────────────────────────────────────────────
+        # ── DATA ROWS ─────────────────────────────────────────────────────────
         for s_idx, student in enumerate(students):
             row  = 6 + s_idx
             srec = lookup.get(student.id, {})
 
-            name_c = ws.cell(row, 1, student.name)
-            name_c.font      = Font(size=8, color='CC0000', name='Calibri')
-            name_c.alignment = L
-            name_c.border    = tb
+            sc(ws, row, 1, student.name, size=8, color='CC0000', align=L, border=TB)
 
             for i, d in enumerate(dates):
-                col_t = 2 + i * 2
-                col_a = col_t + 1
-                rec   = srec.get(d)
+                rec    = srec.get(d)
+                col_t  = 2 + i * 2
+                col_a  = col_t + 1
 
                 if rec:
                     if rec.login_time and rec.logout_time:
-                        time_val = (
-                            f"{rec.login_time.strftime('%I:%M%p').lstrip('0')}"
-                            f"-{rec.logout_time.strftime('%I:%M%p').lstrip('0')}"
-                        )
+                        tv = (f"{rec.login_time.strftime('%I:%M%p').lstrip('0')}"
+                              f"-{rec.logout_time.strftime('%I:%M%p').lstrip('0')}")
                     elif rec.login_time:
-                        time_val = rec.login_time.strftime('%I:%M%p').lstrip('0')
+                        tv = rec.login_time.strftime('%I:%M%p').lstrip('0')
                     else:
-                        time_val = ""
-                    att_val  = rec.get_status_display()
-                    att_fill = (PRES_FILL if rec.status == 'present'
-                                else ABS_FILL if rec.status == 'absent'
-                                else NC_FILL)
+                        tv = ''
+                    av   = rec.get_status_display()
+                    afill = (PRES_FILL if rec.status == 'present'
+                             else ABS_FILL if rec.status == 'absent' else NC_FILL)
                 else:
-                    time_val = att_val = ""
-                    att_fill = None
+                    tv = av = ''
+                    afill = None
 
-                tc = ws.cell(row, col_t, time_val)
-                tc.font = Font(size=8, name='Calibri')
-                tc.alignment = C
-                tc.border    = tb
-
-                ac = ws.cell(row, col_a, att_val)
-                ac.font      = Font(size=8, bold=bool(att_val), name='Calibri')
-                ac.alignment = C
-                ac.border    = tb
-                if att_fill:
-                    ac.fill = att_fill
+                sc(ws, row, col_t, tv, size=8, border=TB)
+                sc(ws, row, col_a, av, size=8, bold=bool(av), fill=afill, border=TB)
 
             ws.row_dimensions[row].height = 18
 
-        # Empty grid rows below students
+        # Empty grid rows
         for extra in range(5):
             r = 6 + len(students) + extra
-            for c_idx in range(1, total_cols + 1):
-                ws.cell(r, c_idx).border = tb
+            for c in range(1, total_cols + 1):
+                sc(ws, r, c, '', size=8, border=TB)
             ws.row_dimensions[r].height = 15
 
-        # ── FOOTER (last sheet only) ─────────────────────────────────────────────
+        # ── FOOTER (last sheet only) ──────────────────────────────────────────
         if sh_idx == len(chunks) - 1:
-            foot_row = 6 + len(students) + 7
-            half_col = max(2, total_cols // 2)
+            foot = 6 + len(students) + 7
+            half = max(2, total_cols // 2)
+            ver  = half + 1
 
-            # Notes heading
-            mc(foot_row, 1, foot_row, half_col).value = "Notes"
-            ws.cell(foot_row, 1).font = Font(bold=True, size=9, name='Calibri')
+            sc(ws, foot, 1, 'Notes', bold=True, size=9, align=L)
+            merge(ws, foot, 1, foot, half)
 
             notes = [
                 "1. This attendance sheet is prepared based on daily attendance records maintained by the organization.",
@@ -698,38 +650,34 @@ def export_batch_excel(request, pk):
                 "4. Attendance has been verified and approved by the undersigned authority.",
             ]
             for n_i, note in enumerate(notes):
-                nr = foot_row + 1 + n_i
-                mc(nr, 1, nr, half_col).value = note
-                ws.cell(nr, 1).font      = Font(size=8, color='0070C0', name='Calibri')
-                ws.cell(nr, 1).alignment = L
+                nr   = foot + 1 + n_i
+                cell = ws.cell(row=nr, column=1, value=note)
+                cell.font      = Font(size=8, color='0070C0', name='Calibri')
+                cell.alignment = L
+                merge(ws, nr, 1, nr, half)
                 ws.row_dimensions[nr].height = 14
 
-            # Verification heading
-            ver_col = half_col + 1
-            mc(foot_row, ver_col, foot_row, total_cols).value = "Verification"
-            ws.cell(foot_row, ver_col).font = Font(bold=True, size=9, name='Calibri')
+            sc(ws, foot, ver, 'Verification', bold=True, size=9, align=L)
+            merge(ws, foot, ver, foot, total_cols)
 
-            sig_row = foot_row + 2
-            mc(sig_row, ver_col, sig_row, total_cols).value = (
-                "Signature of Mentor/Supervisor: _______________________"
-            )
-            ws.cell(sig_row, ver_col).font      = Font(size=8, name='Calibri')
-            ws.cell(sig_row, ver_col).alignment = L
+            sig_r = foot + 2
+            sc(ws, sig_r, ver,
+               'Signature of Mentor/Supervisor: _______________________',
+               size=8, align=L)
+            merge(ws, sig_r, ver, sig_r, total_cols)
 
-            name_row = foot_row + 4
-            mc(name_row, ver_col, name_row, total_cols).value = (
-                "Name & Designation: _______________ / _______________"
-            )
-            ws.cell(name_row, ver_col).font      = Font(size=8, name='Calibri')
-            ws.cell(name_row, ver_col).alignment = L
+            name_r = foot + 4
+            sc(ws, name_r, ver,
+               'Name & Designation: _______________ / _______________',
+               size=8, align=L)
+            merge(ws, name_r, ver, name_r, total_cols)
 
-        # ── Column widths ────────────────────────────────────────────────────────
+        # ── Column widths ─────────────────────────────────────────────────────
         ws.column_dimensions['A'].width = 22
-        for i in range(n_date_cols):
-            ws.column_dimensions[get_column_letter(2 + i * 2)].width = 15  # TIME
-            ws.column_dimensions[get_column_letter(3 + i * 2)].width = 12  # Attendance
+        for i in range(n_dates):
+            ws.column_dimensions[get_column_letter(2 + i*2)].width = 15
+            ws.column_dimensions[get_column_letter(3 + i*2)].width = 12
 
-    # ── Save & return ────────────────────────────────────────────────────────────
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
